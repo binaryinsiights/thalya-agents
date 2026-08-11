@@ -228,6 +228,12 @@ async function prepareProfileCredentials(
     );
     prepared[refField] = entry.ref;
   }
+  // Replacing the private key with an unencrypted test key must not retain a
+  // passphrase from the previous key. Otherwise ssh2 receives credentials
+  // that no longer describe the saved private key.
+  if (text(input.sshSecret) && !text(input.sshPassphraseSecret)) {
+    prepared.sshPassphraseRef = null;
+  }
   return prepared;
 }
 
