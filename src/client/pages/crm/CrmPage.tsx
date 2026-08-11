@@ -300,6 +300,7 @@ FLEET_REPORT_INTERVAL_MS=60000`}
                 onSubmit={submitDeployment}
                 search={search}
                 setSearch={setSearch}
+                onFleetConfig={setFleetConfig}
               />
             )}
             {section === "installation-profile" && (
@@ -720,6 +721,7 @@ function Deployments({
   onSubmit,
   search,
   setSearch,
+  onFleetConfig,
 }: {
   rows: Deployment[];
   customers: Workspace["customers"];
@@ -727,6 +729,11 @@ function Deployments({
   onSubmit(e: FormEvent<HTMLFormElement>): void;
   search: string;
   setSearch(v: string): void;
+  onFleetConfig(value: {
+    controlUrl: string;
+    deploymentKey: string;
+    heartbeatSecret: string;
+  }): void;
 }) {
   return (
     <div className="space-y-4">
@@ -799,6 +806,25 @@ function Deployments({
               </div>
               <Badge variant={badgeVariant(x.health)}>{x.health}</Badge>
               <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    const response = await api.api.v1.crm
+                      .deployments({ id: x.id })
+                      ["fleet-config"].rotate.post();
+                    if (!response.error)
+                      onFleetConfig(
+                        response.data as {
+                          controlUrl: string;
+                          deploymentKey: string;
+                          heartbeatSecret: string;
+                        },
+                      );
+                  }}
+                >
+                  Gerar novo bloco FLEET
+                </Button>
                 {[x.agentsUrl, x.chatwootUrl, x.langfuseUrl, x.baileysUrl]
                   .filter(Boolean)
                   .map((url) => (

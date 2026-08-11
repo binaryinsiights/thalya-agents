@@ -12,6 +12,7 @@ import {
   deleteCustomer,
   deleteDeployment,
   initializeOnboarding,
+  rotateFleetCredential,
   updateAlert,
   updateContract,
   updateCustomer,
@@ -230,6 +231,20 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
         "Salva a ficha completa de pré-implantação e calcula a prontidão.",
       ),
       response: errors(400, 401, 403, 404),
+    },
+  )
+  .post(
+    "/deployments/:id/fleet-config/rotate",
+    ({ tenantContext, params }) =>
+      rotateFleetCredential(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Rotate fleet credential",
+        "Rotaciona o segredo do heartbeat e devolve o novo bloco uma única vez.",
+      ),
+      response: errors(401, 403, 404),
     },
   )
   .delete(

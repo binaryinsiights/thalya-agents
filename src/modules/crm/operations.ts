@@ -3,7 +3,10 @@ import basePrisma from "@/api/lib/prisma";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type ScopedDb, type TenantContext } from "@/lib/tenancy";
 import { recordAudit } from "@/modules/audit/service";
-import { tryResolveVaultSecret } from "@/modules/vault/service";
+import {
+  createVaultEntry,
+  tryResolveVaultSecret,
+} from "@/modules/vault/service";
 import { CRM_ONBOARDING_TEMPLATE } from "./plans";
 
 function tenant(ctx: TenantContext) {
@@ -173,6 +176,50 @@ export function upsertInstallationProfile(
         readiness: installationReadiness(
           row as unknown as Record<string, unknown>,
         ),
+      };
+    },
+    base,
+  );
+}
+
+export async function rotateFleetCredential(
+  ctx: TenantContext,
+  deploymentId: bigint,
+  base = basePrisma,
+) {
+  const deployment = await runScopedOn(base, ctx, (db) =>
+    db.crmDeployment.findUnique({
+      where: { id: deploymentId },
+      select: { id: true, deploymentKey: true },
+    }),
+  );
+  if (!deployment) throw new NotFoundError("deployment not found");
+  const deploymentKey = deployment.deploymentKey ?? randomUUID();
+  const heartbeatSecret = randomBytes(32).toString("hex");
+  const entry = await createVaultEntry(
+    ctx,
+    {
+      name: `fleet-heartbeat-${deploymentKey}-${Date.now()}`,
+      value: heartbeatSecret,
+      kind: "generic",
+    },
+    undefined,
+    undefined,
+    base,
+  );
+  return mutate(
+    ctx,
+    "crm.fleet_credential.rotated",
+    `deployment:${deploymentId}`,
+    async (db) => {
+      await db.crmDeployment.update({
+        where: { id: deploymentId },
+        data: { deploymentKey, heartbeatSecretRef: entry.ref },
+      });
+      return {
+        controlUrl: process.env.PUBLIC_URL ?? "",
+        deploymentKey,
+        heartbeatSecret,
       };
     },
     base,
@@ -595,3 +642,5 @@ export function updateAlert(
     base,
   );
 }
+
+import { randomBytes, randomUUID } from "node:crypto";
