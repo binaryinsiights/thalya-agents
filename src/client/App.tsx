@@ -27,8 +27,8 @@ import { AgentEditorPage } from "@/client/pages/agents/AgentEditorPage";
 import { ChannelsPage } from "@/client/pages/ChannelsPage";
 import { ConversationDetailPage } from "@/client/pages/ConversationDetailPage";
 import { ConversationsPage } from "@/client/pages/ConversationsPage";
-import { DashboardPage } from "@/client/pages/DashboardPage";
 import { CrmPage } from "@/client/pages/crm/CrmPage";
+import { DashboardPage } from "@/client/pages/DashboardPage";
 import { LoginPage } from "@/client/pages/LoginPage";
 // NOTE: SettingsAboutPage removed (item 13); /settings/about now redirects to profile.
 import { LogsPage } from "@/client/pages/LogsPage";

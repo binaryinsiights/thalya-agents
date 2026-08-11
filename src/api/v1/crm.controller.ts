@@ -4,6 +4,21 @@ import { tenancyPlugin } from "@/api/middlewares/tenancy";
 import { ForbiddenError, TenantTargetRequiredError } from "@/lib/errors";
 import type { TenantContext } from "@/lib/tenancy";
 import {
+  createContact,
+  createContract,
+  createMaintenance,
+  decideApproval,
+  deleteContact,
+  deleteCustomer,
+  deleteDeployment,
+  initializeOnboarding,
+  updateAlert,
+  updateContract,
+  updateCustomer,
+  updateDeployment,
+  updateMaintenance,
+} from "@/modules/crm/operations";
+import {
   createChecklistItem,
   createCrmAgent,
   createCrmCustomer,
@@ -96,6 +111,190 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
       detail: doc(
         "Update checklist item",
         "Atualiza execução, evidência, bloqueio ou aprovação.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .patch(
+    "/customers/:id",
+    ({ tenantContext, params, body }) =>
+      updateCustomer(ctxOrThrow(tenantContext), BigInt(params.id), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Update CRM customer",
+        "Atualiza dados, plano e estados do cliente.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .delete(
+    "/customers/:id",
+    ({ tenantContext, params }) =>
+      deleteCustomer(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Delete CRM customer",
+        "Exclui o cliente e seus registros dependentes.",
+      ),
+      response: errors(401, 403, 404),
+    },
+  )
+  .post(
+    "/contacts",
+    ({ tenantContext, body }) => createContact(ctxOrThrow(tenantContext), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      body,
+      detail: doc(
+        "Create CRM contact",
+        "Adiciona contato ou responsável ao cliente.",
+      ),
+      response: errors(400, 401, 403),
+    },
+  )
+  .delete(
+    "/contacts/:id",
+    ({ tenantContext, params }) =>
+      deleteContact(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc("Delete CRM contact", "Remove um contato do cliente."),
+      response: errors(401, 403, 404),
+    },
+  )
+  .post(
+    "/contracts",
+    ({ tenantContext, body }) =>
+      createContract(ctxOrThrow(tenantContext), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      body,
+      detail: doc(
+        "Create CRM contract",
+        "Vincula cliente a uma versão imutável de plano.",
+      ),
+      response: errors(400, 401, 403),
+    },
+  )
+  .patch(
+    "/contracts/:id",
+    ({ tenantContext, params, body }) =>
+      updateContract(ctxOrThrow(tenantContext), BigInt(params.id), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Update CRM contract",
+        "Atualiza estado e cobrança do contrato.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .patch(
+    "/deployments/:id",
+    ({ tenantContext, params, body }) =>
+      updateDeployment(ctxOrThrow(tenantContext), BigInt(params.id), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Update CRM deployment",
+        "Atualiza infraestrutura e credencial de heartbeat por referência Vault.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .delete(
+    "/deployments/:id",
+    ({ tenantContext, params }) =>
+      deleteDeployment(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Delete CRM deployment",
+        "Exclui a instalação e seus dados operacionais.",
+      ),
+      response: errors(401, 403, 404),
+    },
+  )
+  .post(
+    "/deployments/:id/onboarding",
+    ({ tenantContext, params }) =>
+      initializeOnboarding(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Initialize CRM onboarding",
+        "Cria o checklist oficial e os gates de aprovação.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .patch(
+    "/approvals/:id",
+    ({ tenantContext, params, body }) =>
+      decideApproval(ctxOrThrow(tenantContext), BigInt(params.id), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Decide CRM approval",
+        "Aprova ou rejeita um gate de implantação.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .post(
+    "/maintenance",
+    ({ tenantContext, body }) =>
+      createMaintenance(ctxOrThrow(tenantContext), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      body,
+      detail: doc(
+        "Create maintenance",
+        "Registra manutenção ou incidente operacional.",
+      ),
+      response: errors(400, 401, 403),
+    },
+  )
+  .patch(
+    "/maintenance/:id",
+    ({ tenantContext, params, body }) =>
+      updateMaintenance(ctxOrThrow(tenantContext), BigInt(params.id), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Update maintenance",
+        "Atualiza execução e resultado da manutenção.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .patch(
+    "/alerts/:id",
+    ({ tenantContext, params, body }) =>
+      updateAlert(ctxOrThrow(tenantContext), BigInt(params.id), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Update CRM alert",
+        "Reconhece ou resolve um alerta operacional.",
       ),
       response: errors(400, 401, 403, 404),
     },

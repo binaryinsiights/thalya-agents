@@ -15,6 +15,7 @@ import { businessHoursController } from "@/api/v1/business-hours.controller";
 import { chatwootController } from "@/api/v1/chatwoot.controller";
 import { chatwootAdminController } from "@/api/v1/chatwoot-admin.controller";
 import { crmController } from "@/api/v1/crm.controller";
+import { crmFleetController } from "@/api/v1/crm-fleet.controller";
 import { experimentsController } from "@/api/v1/experiments.controller";
 import { integrationsController } from "@/api/v1/integrations.controller";
 import { integrationsAdminController } from "@/api/v1/integrations-admin.controller";
@@ -255,6 +256,7 @@ const api = new Elysia()
   .use(mcpAdminController)
   .use(chatwootController)
   .use(chatwootAdminController)
-  .use(crmController);
+  .use(crmController)
+  .use(crmFleetController);
 
 export default api;

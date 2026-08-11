@@ -6,13 +6,16 @@ import {
   CheckCircle2,
   CircleDollarSign,
   ExternalLink,
+  FileText,
   HeartPulse,
+  History,
   ListChecks,
   Plus,
   Search,
   Server,
   TriangleAlert,
   Users,
+  Wrench,
 } from "lucide-react";
 import {
   type FormEvent,
@@ -47,10 +50,13 @@ const SECTIONS = [
   { id: "overview", label: "Visão geral", icon: Activity },
   { id: "customers", label: "Clientes", icon: Users },
   { id: "pipeline", label: "Pipeline", icon: CircleDollarSign },
+  { id: "contracts", label: "Planos e contratos", icon: FileText },
   { id: "deployments", label: "Instalações", icon: Server },
   { id: "agents", label: "Agentes", icon: Bot },
   { id: "onboarding", label: "Implantação", icon: ListChecks },
   { id: "monitoring", label: "Monitoramento", icon: HeartPulse },
+  { id: "maintenance", label: "Manutenções", icon: Wrench },
+  { id: "audit", label: "Auditoria", icon: History },
 ] as const;
 
 const badgeVariant = (status: string) => {
@@ -175,7 +181,13 @@ export function CrmPage() {
     }
   };
 
-  const canCreate = ["customers", "deployments", "agents"].includes(section);
+  const canCreate = [
+    "customers",
+    "deployments",
+    "agents",
+    "contracts",
+    "maintenance",
+  ].includes(section);
   return (
     <PageContainer className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -194,7 +206,11 @@ export function CrmPage() {
               ? "Novo cliente"
               : section === "deployments"
                 ? "Nova instalação"
-                : "Novo agente"}
+                : section === "contracts"
+                  ? "Novo contrato"
+                  : section === "maintenance"
+                    ? "Nova manutenção"
+                    : "Novo agente"}
           </Button>
         )}
       </header>
@@ -230,13 +246,19 @@ export function CrmPage() {
               <Customers
                 rows={customers}
                 plans={data.plans}
+                contacts={data.contacts}
                 creating={creating}
                 onSubmit={submitCustomer}
                 search={search}
                 setSearch={setSearch}
               />
             )}
-            {section === "pipeline" && <Pipeline rows={data.customers} />}
+            {section === "pipeline" && (
+              <Pipeline rows={data.customers} reload={load} />
+            )}
+            {section === "contracts" && (
+              <Contracts data={data} creating={creating} reload={load} />
+            )}
             {section === "deployments" && (
               <Deployments
                 rows={deployments}
@@ -262,6 +284,10 @@ export function CrmPage() {
               <Onboarding data={data} reload={load} />
             )}
             {section === "monitoring" && <Monitoring data={data} />}
+            {section === "maintenance" && (
+              <Maintenance data={data} creating={creating} reload={load} />
+            )}
+            {section === "audit" && <AuditTrail data={data} />}
           </>
         )}
       </DataBoundary>
@@ -386,6 +412,7 @@ function Row({
 function Customers({
   rows,
   plans,
+  contacts,
   creating,
   onSubmit,
   search,
@@ -393,6 +420,7 @@ function Customers({
 }: {
   rows: Customer[];
   plans: Workspace["plans"];
+  contacts: Workspace["contacts"];
   creating: boolean;
   onSubmit(e: FormEvent<HTMLFormElement>): void;
   search: string;
@@ -465,6 +493,17 @@ function Customers({
                 {x._count.deployments} instalação(ões)
               </span>
             </div>
+            <div className="mt-3 border-border border-t pt-3">
+              {contacts
+                .filter((contact) => String(contact.customerId) === x.id)
+                .map((contact) => (
+                  <p key={contact.id} className="text-sm text-text-secondary">
+                    {contact.name}
+                    {contact.role ? ` · ${contact.role}` : ""}
+                    {contact.phone ? ` · ${contact.phone}` : ""}
+                  </p>
+                ))}
+            </div>
           </Card>
         ))}
       </div>
@@ -479,8 +518,18 @@ function Customers({
   );
 }
 
-function Pipeline({ rows }: { rows: Customer[] }) {
+function Pipeline({
+  rows,
+  reload,
+}: {
+  rows: Customer[];
+  reload(): Promise<void>;
+}) {
   const columns = ["LEAD", "QUALIFIED", "PROPOSAL", "ACTIVE"];
+  const move = async (id: string, commercialStatus: string) => {
+    await api.api.v1.crm.customers({ id }).patch({ commercialStatus });
+    await reload();
+  };
   return (
     <div className="grid gap-4 xl:grid-cols-4">
       {columns.map((status) => (
@@ -499,10 +548,128 @@ function Pipeline({ rows }: { rows: Customer[] }) {
                 <p className="mt-1 text-sm text-text-secondary">
                   {x.plan.replaceAll("_", " ")}
                 </p>
+                <Select
+                  className="mt-3"
+                  value={x.commercialStatus}
+                  onChange={(event) => void move(x.id, event.target.value)}
+                >
+                  {columns.map((column) => (
+                    <option key={column} value={column}>
+                      {column}
+                    </option>
+                  ))}
+                </Select>
               </Card>
             ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+function Contracts({
+  data,
+  creating,
+  reload,
+}: {
+  data: Workspace;
+  creating: boolean;
+  reload(): Promise<void>;
+}) {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    await api.api.v1.crm.contracts.post(values);
+    await reload();
+  };
+  return (
+    <div className="space-y-5">
+      {creating && (
+        <Card>
+          <h2 className="mb-4 font-semibold text-text-primary">
+            Novo contrato
+          </h2>
+          <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+            <Field label="Cliente">
+              <Select name="customerId">
+                {data.customers.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Plano e versão">
+              <Select name="planVersionId">
+                {data.planVersions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.displayName} · {item.version}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Início">
+              <Input name="startsAt" type="date" required />
+            </Field>
+            <Field label="Término">
+              <Input name="endsAt" type="date" />
+            </Field>
+            <Field label="Mensalidade">
+              <Input name="monthlyAmount" type="number" step="0.01" />
+            </Field>
+            <Field label="Dia de cobrança">
+              <Input name="billingDay" type="number" min="1" max="31" />
+            </Field>
+            <div className="md:col-span-2">
+              <Button type="submit">Salvar contrato</Button>
+            </div>
+          </form>
+        </Card>
+      )}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {data.planVersions.map((plan) => {
+          const definition = plan.definition as {
+            limits?: Record<string, number>;
+            delivery?: { support?: string };
+          };
+          return (
+            <Card key={plan.id} className="p-5">
+              <h3 className="font-semibold text-text-primary">
+                {plan.displayName}
+              </h3>
+              <p className="text-sm text-text-secondary">
+                Versão imutável {plan.version}
+              </p>
+              <div className="mt-4 space-y-2 text-sm text-text-secondary">
+                {Object.entries(definition.limits ?? {}).map(([key, value]) => (
+                  <div key={key} className="flex justify-between">
+                    <span>{key}</span>
+                    <strong className="text-text-primary">{value}</strong>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-sm text-text-muted">
+                {definition.delivery?.support}
+              </p>
+            </Card>
+          );
+        })}
+      </div>
+      <Card>
+        <h2 className="mb-4 font-semibold text-text-primary">
+          Contratos ativos e históricos
+        </h2>
+        <div className="space-y-3">
+          {data.contracts.map((item) => (
+            <Row
+              key={item.id}
+              title={item.customer.name}
+              subtitle={`${item.planVersion.displayName} · ${item.planVersion.version}`}
+              status={item.status}
+            />
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
@@ -545,6 +712,15 @@ function Deployments({
             <Field label="Domínio">
               <Input name="domain" />
             </Field>
+            <Field label="Chave pública da implantação">
+              <Input name="deploymentKey" placeholder="cliente-producao-uuid" />
+            </Field>
+            <Field label="Instance ID">
+              <Input name="instanceId" />
+            </Field>
+            <Field label="Referência do segredo no Vault">
+              <Input name="heartbeatSecretRef" placeholder="vault:123" />
+            </Field>
             <Field label="Orquestrador">
               <Input name="orchestrator" placeholder="Coolify" />
             </Field>
@@ -559,6 +735,9 @@ function Deployments({
             </Field>
             <Field label="URL Langfuse">
               <Input name="langfuseUrl" type="url" />
+            </Field>
+            <Field label="URL Baileys">
+              <Input name="baileysUrl" type="url" />
             </Field>
             <div className="md:col-span-2">
               <Button type="submit">Salvar instalação</Button>
@@ -581,12 +760,12 @@ function Deployments({
               </div>
               <Badge variant={badgeVariant(x.health)}>{x.health}</Badge>
               <div className="flex gap-2">
-                {[x.agentsUrl, x.chatwootUrl, x.langfuseUrl]
+                {[x.agentsUrl, x.chatwootUrl, x.langfuseUrl, x.baileysUrl]
                   .filter(Boolean)
                   .map((url) => (
                     <a
                       key={url}
-                      href={url!}
+                      href={url ?? undefined}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-lg border border-border p-2 text-text-secondary hover:text-accent"
@@ -700,13 +879,22 @@ function Onboarding({
     await api.api.v1.crm.checklist({ id }).patch({ status: "DONE" });
     await reload();
   };
+  const initialize = async (id: string) => {
+    await api.api.v1.crm.deployments({ id }).onboarding.post();
+    await reload();
+  };
+  const decide = async (id: string, status: "APPROVED" | "REJECTED") => {
+    await api.api.v1.crm.approvals({ id }).patch({ status });
+    await reload();
+  };
   return (
     <div className="space-y-4">
       {data.deployments.map((deployment) => {
         const items = data.checklist.filter(
-          (x) =>
-            x.deploymentId === (BigInt(deployment.id) as never) ||
-            String(x.deploymentId) === deployment.id,
+          (x) => String(x.deploymentId) === deployment.id,
+        );
+        const approvals = data.approvals.filter(
+          (x) => String(x.deploymentId) === deployment.id,
         );
         return (
           <Card key={deployment.id}>
@@ -720,6 +908,14 @@ function Onboarding({
               <Badge>
                 {items.filter((x) => x.status === "DONE").length}/{items.length}
               </Badge>
+              {items.length === 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => void initialize(deployment.id)}
+                >
+                  Criar checklist oficial
+                </Button>
+              )}
             </div>
             <div className="space-y-2">
               {items.map((x) => (
@@ -748,6 +944,47 @@ function Onboarding({
                 </div>
               ))}
             </div>
+            {approvals.length > 0 && (
+              <div className="mt-5 border-border border-t pt-4">
+                <h3 className="mb-3 font-medium text-text-primary">
+                  Gates de aprovação
+                </h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {approvals.map((approval) => (
+                    <div
+                      key={approval.id}
+                      className="flex items-center justify-between rounded-lg bg-bg-tertiary p-3"
+                    >
+                      <div>
+                        <p className="font-medium text-sm text-text-primary">
+                          {approval.gate}
+                        </p>
+                        <Badge variant={badgeVariant(approval.status)}>
+                          {approval.status}
+                        </Badge>
+                      </div>
+                      {approval.status === "PENDING" && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void decide(approval.id, "REJECTED")}
+                          >
+                            Rejeitar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => void decide(approval.id, "APPROVED")}
+                          >
+                            Aprovar
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
         );
       })}
@@ -763,48 +1000,259 @@ function Onboarding({
 }
 
 function Monitoring({ data }: { data: Workspace }) {
+  const updateAlertStatus = async (
+    id: string,
+    status: "ACKNOWLEDGED" | "RESOLVED",
+  ) => {
+    await api.api.v1.crm.alerts({ id }).patch({ status });
+    window.location.reload();
+  };
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {data.services.map((service) => (
+          <Card key={service.id} className="p-4">
+            <p className="text-sm text-text-muted uppercase">
+              {service.serviceType}
+            </p>
+            <p className="mt-1 font-medium text-text-primary">
+              {data.deployments.find(
+                (item) => item.id === String(service.deploymentId),
+              )?.customer.name ?? "Instalação"}
+            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <Badge variant={badgeVariant(service.status)}>
+                {service.status}
+              </Badge>
+              <span className="text-sm text-text-secondary">
+                {service.version ?? "versão desconhecida"}
+              </span>
+            </div>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h2 className="mb-4 font-semibold text-text-primary">
+            Saúde das instalações
+          </h2>
+          <div className="space-y-3">
+            {data.deployments.map((x) => (
+              <Row
+                key={x.id}
+                title={x.customer.name}
+                subtitle={
+                  x.lastHeartbeatAt
+                    ? `Último sinal: ${new Date(x.lastHeartbeatAt).toLocaleString("pt-BR")}`
+                    : "Sem heartbeat"
+                }
+                status={x.health}
+                href={x.agentsUrl}
+              />
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <h2 className="mb-4 font-semibold text-text-primary">
+            Alertas e incidentes
+          </h2>
+          <div className="space-y-3">
+            {data.alerts.map((x) => (
+              <div
+                key={x.id}
+                className="rounded-lg border border-border bg-bg-tertiary p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-text-primary">{x.title}</p>
+                    <p className="text-sm text-text-secondary">
+                      {x.description ?? x.source}
+                    </p>
+                  </div>
+                  <Badge variant={badgeVariant(x.severity)}>{x.severity}</Badge>
+                </div>
+                {x.status !== "RESOLVED" && (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        void updateAlertStatus(x.id, "ACKNOWLEDGED")
+                      }
+                    >
+                      Reconhecer
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void updateAlertStatus(x.id, "RESOLVED")}
+                    >
+                      Resolver
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {data.alerts.length === 0 && (
+            <p className="text-sm text-text-secondary">
+              Nenhum alerta registrado.
+            </p>
+          )}
+        </Card>
+      </div>
       <Card>
         <h2 className="mb-4 font-semibold text-text-primary">
-          Saúde das instalações
+          Consumo agregado do período
         </h2>
-        <div className="space-y-3">
-          {data.deployments.map((x) => (
-            <Row
-              key={x.id}
-              title={x.customer.name}
-              subtitle={
-                x.lastHeartbeatAt
-                  ? `Último sinal: ${new Date(x.lastHeartbeatAt).toLocaleString("pt-BR")}`
-                  : "Sem heartbeat"
-              }
-              status={x.health}
-              href={x.agentsUrl}
-            />
-          ))}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {data.usageSnapshots.slice(0, 12).map((usage) => {
+            const deployment = data.deployments.find(
+              (item) => item.id === String(usage.deploymentId),
+            );
+            return (
+              <div
+                key={usage.id}
+                className="rounded-lg border border-border bg-bg-tertiary p-3"
+              >
+                <p className="font-medium text-text-primary">
+                  {deployment?.customer.name ?? "Instalação"}
+                </p>
+                <p className="mt-2 text-sm text-text-secondary">
+                  {usage.conversations} conversas ·{" "}
+                  {Number(usage.promptTokens) + Number(usage.completionTokens)}{" "}
+                  tokens
+                </p>
+                <p className="text-sm text-text-muted">
+                  Custo estimado: {String(usage.estimatedCost)}
+                </p>
+              </div>
+            );
+          })}
         </div>
-      </Card>
-      <Card>
-        <h2 className="mb-4 font-semibold text-text-primary">
-          Alertas e incidentes
-        </h2>
-        <div className="space-y-3">
-          {data.alerts.map((x) => (
-            <Row
-              key={x.id}
-              title={x.title}
-              subtitle={x.description ?? x.source}
-              status={x.severity}
-            />
-          ))}
-        </div>
-        {data.alerts.length === 0 && (
+        {data.usageSnapshots.length === 0 && (
           <p className="text-sm text-text-secondary">
-            Nenhum alerta registrado.
+            O consumo aparecerá após o primeiro heartbeat.
           </p>
         )}
       </Card>
     </div>
+  );
+}
+
+function Maintenance({
+  data,
+  creating,
+  reload,
+}: {
+  data: Workspace;
+  creating: boolean;
+  reload(): Promise<void>;
+}) {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await api.api.v1.crm.maintenance.post(
+      Object.fromEntries(new FormData(event.currentTarget)),
+    );
+    await reload();
+  };
+  const finish = async (id: string) => {
+    await api.api.v1.crm.maintenance({ id }).patch({ status: "DONE" });
+    await reload();
+  };
+  return (
+    <div className="space-y-4">
+      {creating && (
+        <Card>
+          <h2 className="mb-4 font-semibold text-text-primary">
+            Registrar manutenção ou incidente
+          </h2>
+          <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+            <Field label="Instalação">
+              <Select name="deploymentId">
+                {data.deployments.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.customer.name} · {item.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Tipo">
+              <Select name="kind">
+                <option value="MAINTENANCE">Manutenção</option>
+                <option value="INCIDENT">Incidente</option>
+                <option value="UPDATE">Atualização</option>
+              </Select>
+            </Field>
+            <Field label="Resumo">
+              <Input name="summary" required />
+            </Field>
+            <Field label="Responsável">
+              <Input name="responsible" />
+            </Field>
+            <Field label="Agendamento">
+              <Input name="scheduledAt" type="datetime-local" />
+            </Field>
+            <div className="md:col-span-2">
+              <Button type="submit">Salvar registro</Button>
+            </div>
+          </form>
+        </Card>
+      )}
+      <div className="space-y-3">
+        {data.maintenance.map((item) => (
+          <Card key={item.id} className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-medium text-text-primary">
+                  {item.summary}
+                </h3>
+                <p className="text-sm text-text-secondary">
+                  {item.kind} · {item.responsible ?? "Sem responsável"}
+                </p>
+              </div>
+              <Badge variant={badgeVariant(item.status)}>{item.status}</Badge>
+            </div>
+            {item.status !== "DONE" && (
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="secondary"
+                onClick={() => void finish(item.id)}
+              >
+                Concluir
+              </Button>
+            )}
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AuditTrail({ data }: { data: Workspace }) {
+  return (
+    <Card>
+      <h2 className="mb-4 font-semibold text-text-primary">
+        Histórico imutável de ações
+      </h2>
+      <div className="space-y-3">
+        {data.audit.map((entry) => (
+          <div
+            key={entry.id}
+            className="flex flex-wrap items-center justify-between gap-3 border-border border-b pb-3"
+          >
+            <div>
+              <p className="font-medium text-text-primary">{entry.action}</p>
+              <p className="text-sm text-text-secondary">
+                {entry.target ?? "CRM"} · ator {entry.actorId ?? "sistema"}
+              </p>
+            </div>
+            <time className="text-sm text-text-muted">
+              {new Date(entry.createdAt).toLocaleString("pt-BR")}
+            </time>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

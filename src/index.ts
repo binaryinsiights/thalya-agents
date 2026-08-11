@@ -9,6 +9,11 @@ import {
 } from "@/lib/db-guard";
 import { registerAppointmentReminderHandler } from "@/modules/appointments/reminders";
 import { registerRedirectFollowUpHandlers } from "@/modules/channel-redirect/followup";
+import {
+  startFleetReporter,
+  stopFleetReporter,
+} from "@/modules/crm/fleet-reporter";
+import { startCrmMonitor, stopCrmMonitor } from "@/modules/crm/monitor-worker";
 import { registerDebounceHandler } from "@/modules/debounce/handler";
 import {
   startDebounceWorker,
@@ -177,6 +182,8 @@ if (config.schedulerWorker.enabled) {
 if (config.alertWorker.enabled) {
   startAlertWorker();
 }
+startFleetReporter();
+startCrmMonitor();
 
 // NOTE: Dedicated fast worker for DEBOUNCE jobs (inbound message coalescing). Separate cadence from
 // the scheduler; same single-replica discipline. The handler is registered before the worker starts
@@ -192,6 +199,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopScheduler();
     stopDebounceWorker();
     stopAlertWorker();
+    stopFleetReporter();
+    stopCrmMonitor();
     process.exit(0);
   });
 }
