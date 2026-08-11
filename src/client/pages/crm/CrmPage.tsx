@@ -35,6 +35,7 @@ import {
   Input,
   PageContainer,
   Select,
+  Textarea,
 } from "@/client/components";
 import { api } from "@/client/lib/api";
 import { cn } from "@/client/lib/utils";
@@ -982,9 +983,10 @@ function InstallationProfiles({
             <Input name="serverUser" defaultValue={value("serverUser")} />
           </Field>
           <Field label="Chave privada SSH">
-            <Input
+            <Textarea
               name="sshSecret"
-              type="password"
+              rows={6}
+              autoComplete="off"
               placeholder={
                 profile?.sshCredentialRef
                   ? "Chave já salva. Deixe vazio para manter."
