@@ -32,6 +32,20 @@ simultânea de toda a frota.
 6. Valide os quatro serviços, o primeiro heartbeat e os links profundos.
 7. Ative a instalação somente depois da homologação.
 
+## Ficha técnica obrigatória
+
+Antes da implantação, preencha **CRM > Ficha técnica**. A ficha reúne prazo e
+responsável, provedor e capacidade da VPS, acesso SSH ou ao orquestrador, DNS,
+os quatro domínios, TLS, backup, registry e autorização formal. O indicador de
+prontidão só chega a 100% quando os campos exigidos para o método escolhido
+estão completos.
+
+Credenciais nunca são digitadas ou persistidas na ficha. Crie-as primeiro em
+**Recursos > Cofre** e informe somente a referência `vault:<id>`. O backend
+confirma que cada referência existe e está ativa antes de salvar. Para Coolify
+e Portainer são exigidos URL e token do orquestrador; para Docker Compose são
+exigidos usuário e credencial SSH.
+
 ## Emissor na VPS do cliente
 
 Configure somente na instalação remota:

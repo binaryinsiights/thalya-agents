@@ -4,6 +4,7 @@ import basePrisma from "@/api/lib/prisma";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
 import { createVaultEntry } from "@/modules/vault/service";
+import { installationReadiness } from "./operations";
 import { CRM_PLAN_DEFINITIONS } from "./plans";
 
 export const CRM_PLANS = CRM_PLAN_DEFINITIONS.map((plan) => ({
@@ -81,6 +82,7 @@ export async function getCrmWorkspace(
       maintenance,
       audit,
       localAgents,
+      installationProfiles,
     ] = await Promise.all([
       db.crmCustomer.findMany({
         orderBy: { updatedAt: "desc" },
@@ -175,6 +177,7 @@ export async function getCrmWorkspace(
           updatedAt: true,
         },
       }),
+      db.crmInstallationProfile.findMany({ orderBy: { updatedAt: "desc" } }),
     ]);
     return {
       plans: CRM_PLANS,
@@ -199,6 +202,14 @@ export async function getCrmWorkspace(
           source: "LOCAL",
           status: agent.enabled ? "ACTIVE" : "INACTIVE",
           deepLink: `/agents/${agent.id}/general`,
+        }),
+      ),
+      installationProfiles: installationProfiles.map((profile) =>
+        json({
+          ...profile,
+          readiness: installationReadiness(
+            profile as unknown as Record<string, unknown>,
+          ),
         }),
       ),
       checklist: checklist.map(json),

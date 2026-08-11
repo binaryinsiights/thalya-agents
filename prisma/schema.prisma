@@ -160,6 +160,7 @@ model Tenant {
   crmHealthSnapshots            CrmHealthSnapshot[]
   crmUsageSnapshots             CrmUsageSnapshot[]
   crmMaintenanceRecords         CrmMaintenanceRecord[]
+  crmInstallationProfiles       CrmInstallationProfile[]
 
   @@map("tenants")
 }
@@ -286,11 +287,55 @@ model CrmDeployment {
   usageSnapshots CrmUsageSnapshot[]
   maintenanceRecords CrmMaintenanceRecord[]
   alerts CrmAlert[]
+  installationProfile CrmInstallationProfile?
   @@index([tenantId])
   @@index([tenantId, customerId])
   @@unique([tenantId, instanceId])
   @@unique([tenantId, deploymentKey])
   @@map("crm_deployments")
+}
+
+model CrmInstallationProfile {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  deploymentId BigInt @unique @map("deployment_id")
+  technicalOwner String? @map("technical_owner")
+  desiredDeliveryAt DateTime? @map("desired_delivery_at")
+  provider String?
+  serverHost String? @map("server_host")
+  serverPort Int @default(22) @map("server_port")
+  serverUser String? @map("server_user")
+  sshCredentialRef String? @map("ssh_credential_ref")
+  operatingSystem String? @map("operating_system")
+  region String?
+  cpuCores Int? @map("cpu_cores")
+  memoryMb Int? @map("memory_mb")
+  diskGb Int? @map("disk_gb")
+  orchestrator String?
+  orchestratorUrl String? @map("orchestrator_url")
+  orchestratorCredentialRef String? @map("orchestrator_credential_ref")
+  dnsProvider String? @map("dns_provider")
+  dnsZone String? @map("dns_zone")
+  dnsCredentialRef String? @map("dns_credential_ref")
+  agentsDomain String? @map("agents_domain")
+  chatwootDomain String? @map("chatwoot_domain")
+  baileysDomain String? @map("baileys_domain")
+  langfuseDomain String? @map("langfuse_domain")
+  acmeEmail String? @map("acme_email")
+  backupProvider String? @map("backup_provider")
+  backupDestination String? @map("backup_destination")
+  backupCredentialRef String? @map("backup_credential_ref")
+  registryCredentialRef String? @map("registry_credential_ref")
+  authorized Boolean @default(false)
+  authorizedBy String? @map("authorized_by")
+  authorizedAt DateTime? @map("authorized_at")
+  notes String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deployment CrmDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@map("crm_installation_profiles")
 }
 
 model CrmRemoteService {

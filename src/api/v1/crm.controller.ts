@@ -17,6 +17,7 @@ import {
   updateCustomer,
   updateDeployment,
   updateMaintenance,
+  upsertInstallationProfile,
 } from "@/modules/crm/operations";
 import {
   createChecklistItem,
@@ -208,6 +209,25 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
       detail: doc(
         "Update CRM deployment",
         "Atualiza infraestrutura e credencial de heartbeat por referência Vault.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
+  .put(
+    "/deployments/:id/installation-profile",
+    ({ tenantContext, params, body }) =>
+      upsertInstallationProfile(
+        ctxOrThrow(tenantContext),
+        BigInt(params.id),
+        body,
+      ),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      body,
+      detail: doc(
+        "Save installation profile",
+        "Salva a ficha completa de pré-implantação e calcula a prontidão.",
       ),
       response: errors(400, 401, 403, 404),
     },

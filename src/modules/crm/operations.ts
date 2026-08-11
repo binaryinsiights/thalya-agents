@@ -3,6 +3,7 @@ import basePrisma from "@/api/lib/prisma";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type ScopedDb, type TenantContext } from "@/lib/tenancy";
 import { recordAudit } from "@/modules/audit/service";
+import { tryResolveVaultSecret } from "@/modules/vault/service";
 import { CRM_ONBOARDING_TEMPLATE } from "./plans";
 
 function tenant(ctx: TenantContext) {
@@ -29,6 +30,153 @@ function safe<T>(value: T): unknown {
       Object.entries(value).map(([key, item]) => [key, safe(item)]),
     );
   return value;
+}
+
+const PROFILE_FIELDS = [
+  "technicalOwner",
+  "desiredDeliveryAt",
+  "provider",
+  "serverHost",
+  "serverPort",
+  "serverUser",
+  "sshCredentialRef",
+  "operatingSystem",
+  "region",
+  "cpuCores",
+  "memoryMb",
+  "diskGb",
+  "orchestrator",
+  "orchestratorUrl",
+  "orchestratorCredentialRef",
+  "dnsProvider",
+  "dnsZone",
+  "dnsCredentialRef",
+  "agentsDomain",
+  "chatwootDomain",
+  "baileysDomain",
+  "langfuseDomain",
+  "acmeEmail",
+  "backupProvider",
+  "backupDestination",
+  "backupCredentialRef",
+  "registryCredentialRef",
+  "authorized",
+  "authorizedBy",
+  "notes",
+] as const;
+
+export function installationReadiness(profile: Record<string, unknown> | null) {
+  if (!profile) return { ready: false, percent: 0, missing: ["ficha técnica"] };
+  const orchestrator = String(profile.orchestrator ?? "").toUpperCase();
+  const required = [
+    ["responsável técnico", profile.technicalOwner],
+    ["data de entrega", profile.desiredDeliveryAt],
+    ["provedor da VPS", profile.provider],
+    ["host da VPS", profile.serverHost],
+    ["sistema operacional", profile.operatingSystem],
+    ["região", profile.region],
+    ["CPU", profile.cpuCores],
+    ["memória", profile.memoryMb],
+    ["disco", profile.diskGb],
+    ["orquestrador", profile.orchestrator],
+    ["provedor DNS", profile.dnsProvider],
+    ["zona DNS", profile.dnsZone],
+    ["credencial DNS", profile.dnsCredentialRef],
+    ["domínio Agents", profile.agentsDomain],
+    ["domínio Chatwoot", profile.chatwootDomain],
+    ["domínio Baileys", profile.baileysDomain],
+    ["domínio Langfuse", profile.langfuseDomain],
+    ["e-mail TLS", profile.acmeEmail],
+    ["provedor de backup", profile.backupProvider],
+    ["destino de backup", profile.backupDestination],
+    ["credencial de backup", profile.backupCredentialRef],
+    ["credencial do registry", profile.registryCredentialRef],
+    ["autorização", profile.authorized],
+    ...(orchestrator === "DOCKER_COMPOSE"
+      ? [
+          ["usuário SSH", profile.serverUser],
+          ["credencial SSH", profile.sshCredentialRef],
+        ]
+      : [
+          ["URL do orquestrador", profile.orchestratorUrl],
+          ["credencial do orquestrador", profile.orchestratorCredentialRef],
+        ]),
+  ] as Array<[string, unknown]>;
+  const missing = required
+    .filter(([, value]) => !value)
+    .map(([label]) => label);
+  return {
+    ready: missing.length === 0,
+    percent: Math.round(
+      ((required.length - missing.length) / required.length) * 100,
+    ),
+    missing,
+  };
+}
+
+export function upsertInstallationProfile(
+  ctx: TenantContext,
+  deploymentId: bigint,
+  input: Record<string, unknown>,
+  base = basePrisma,
+) {
+  return mutate(
+    ctx,
+    "crm.installation_profile.updated",
+    `deployment:${deploymentId}`,
+    async (db) => {
+      const deployment = await db.crmDeployment.findUnique({
+        where: { id: deploymentId },
+        select: { id: true },
+      });
+      if (!deployment) throw new NotFoundError("deployment not found");
+      for (const key of [
+        "sshCredentialRef",
+        "orchestratorCredentialRef",
+        "dnsCredentialRef",
+        "backupCredentialRef",
+        "registryCredentialRef",
+      ] as const) {
+        const ref = text(input[key]);
+        if (ref && !(await tryResolveVaultSecret(db, ref))) {
+          throw new AppError(
+            `vault reference for ${key} is invalid or pending`,
+            400,
+          );
+        }
+      }
+      const data: Record<string, unknown> = {};
+      for (const key of PROFILE_FIELDS) {
+        if (input[key] === undefined) continue;
+        if (key === "desiredDeliveryAt") data[key] = date(input[key]);
+        else if (["serverPort", "cpuCores", "memoryMb", "diskGb"].includes(key))
+          data[key] = input[key] ? Number(input[key]) : null;
+        else if (key === "authorized") {
+          data.authorized =
+            input.authorized === true ||
+            input.authorized === "true" ||
+            input.authorized === "on";
+          data.authorizedAt = data.authorized ? new Date() : null;
+        } else data[key] = text(input[key]);
+      }
+      const row = await db.crmInstallationProfile.upsert({
+        where: { deploymentId },
+        create: {
+          ...data,
+          tenantId: tenant(ctx),
+          deploymentId,
+        } as Prisma.CrmInstallationProfileUncheckedCreateInput,
+        update: data,
+      });
+      return {
+        ...row,
+        readiness: installationReadiness(
+          row as unknown as Record<string, unknown>,
+        ),
+      };
+    },
+    base,
+  );
 }
 async function mutate<T>(
   ctx: TenantContext,

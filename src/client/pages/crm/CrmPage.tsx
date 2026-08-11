@@ -53,6 +53,7 @@ const SECTIONS = [
   { id: "pipeline", label: "Pipeline", icon: CircleDollarSign },
   { id: "contracts", label: "Planos e contratos", icon: FileText },
   { id: "deployments", label: "Instalações", icon: Server },
+  { id: "installation-profile", label: "Ficha técnica", icon: FileText },
   { id: "agents", label: "Agentes", icon: Bot },
   { id: "onboarding", label: "Implantação", icon: ListChecks },
   { id: "monitoring", label: "Monitoramento", icon: HeartPulse },
@@ -300,6 +301,9 @@ FLEET_REPORT_INTERVAL_MS=60000`}
                 search={search}
                 setSearch={setSearch}
               />
+            )}
+            {section === "installation-profile" && (
+              <InstallationProfiles data={data} reload={load} />
             )}
             {section === "agents" && (
               <Agents
@@ -611,7 +615,9 @@ function Contracts({
 }) {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const values: Record<string, unknown> = Object.fromEntries(
+      new FormData(event.currentTarget),
+    );
     await api.api.v1.crm.contracts.post(values);
     await reload();
   };
@@ -812,6 +818,319 @@ function Deployments({
         ))}
       </div>
     </div>
+  );
+}
+
+function InstallationProfiles({
+  data,
+  reload,
+}: {
+  data: Workspace;
+  reload(): Promise<void>;
+}) {
+  const [deploymentId, setDeploymentId] = useState(
+    data.deployments[0]?.id ?? "",
+  );
+  const profile = data.installationProfiles.find(
+    (item) => String(item.deploymentId) === deploymentId,
+  );
+  const deployment = data.deployments.find((item) => item.id === deploymentId);
+  const value = (key: string) =>
+    String(
+      (profile as unknown as Record<string, unknown> | undefined)?.[key] ?? "",
+    );
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const values: Record<string, unknown> = Object.fromEntries(
+      new FormData(event.currentTarget),
+    );
+    values.authorized = values.authorized === "on";
+    await api.api.v1.crm
+      .deployments({ id: deploymentId })
+      ["installation-profile"].put(values);
+    await reload();
+  };
+  if (!deployment) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title="Nenhuma instalação cadastrada"
+        description="Cadastre a instalação antes de preencher a ficha técnica."
+      />
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="grid items-end gap-4 md:grid-cols-[1fr_auto]">
+          <Field label="Instalação">
+            <Select
+              value={deploymentId}
+              onChange={(event) => setDeploymentId(event.target.value)}
+            >
+              {data.deployments.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.customer.name} · {item.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="min-w-64">
+            <div className="flex justify-between text-sm text-text-secondary">
+              <span>Prontidão para instalar</span>
+              <strong>{profile?.readiness.percent ?? 0}%</strong>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full bg-accent"
+                style={{ width: `${profile?.readiness.percent ?? 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+        {profile && !profile.readiness.ready && (
+          <p className="mt-3 text-sm text-warning">
+            Faltando: {profile.readiness.missing.join(", ")}
+          </p>
+        )}
+      </Card>
+      <form key={deploymentId} onSubmit={submit} className="space-y-4">
+        <ProfileSection title="Responsáveis e prazo">
+          <Field label="Responsável técnico Binary Insights">
+            <Input
+              name="technicalOwner"
+              defaultValue={value("technicalOwner")}
+              required
+            />
+          </Field>
+          <Field label="Entrega desejada">
+            <Input
+              name="desiredDeliveryAt"
+              type="date"
+              defaultValue={value("desiredDeliveryAt").slice(0, 10)}
+              required
+            />
+          </Field>
+        </ProfileSection>
+        <ProfileSection title="VPS e capacidade">
+          <Field label="Provedor da VPS">
+            <Input name="provider" defaultValue={value("provider")} required />
+          </Field>
+          <Field label="IP ou hostname">
+            <Input
+              name="serverHost"
+              defaultValue={value("serverHost")}
+              required
+            />
+          </Field>
+          <Field label="Porta SSH">
+            <Input
+              name="serverPort"
+              type="number"
+              defaultValue={value("serverPort") || "22"}
+              required
+            />
+          </Field>
+          <Field label="Usuário SSH">
+            <Input name="serverUser" defaultValue={value("serverUser")} />
+          </Field>
+          <Field label="Credencial SSH no Vault">
+            <Input
+              name="sshCredentialRef"
+              defaultValue={value("sshCredentialRef")}
+              placeholder="vault:123"
+            />
+          </Field>
+          <Field label="Sistema operacional">
+            <Input
+              name="operatingSystem"
+              defaultValue={value("operatingSystem") || "Ubuntu 24.04"}
+              required
+            />
+          </Field>
+          <Field label="Região">
+            <Input name="region" defaultValue={value("region")} required />
+          </Field>
+          <Field label="CPU (núcleos)">
+            <Input
+              name="cpuCores"
+              type="number"
+              min="2"
+              defaultValue={value("cpuCores")}
+              required
+            />
+          </Field>
+          <Field label="Memória (MB)">
+            <Input
+              name="memoryMb"
+              type="number"
+              min="4096"
+              defaultValue={value("memoryMb")}
+              required
+            />
+          </Field>
+          <Field label="Disco (GB)">
+            <Input
+              name="diskGb"
+              type="number"
+              min="40"
+              defaultValue={value("diskGb")}
+              required
+            />
+          </Field>
+        </ProfileSection>
+        <ProfileSection title="Orquestrador">
+          <Field label="Método">
+            <Select
+              name="orchestrator"
+              defaultValue={value("orchestrator") || "COOLIFY"}
+            >
+              <option value="COOLIFY">Coolify</option>
+              <option value="PORTAINER">Portainer</option>
+              <option value="DOCKER_COMPOSE">Docker Compose via SSH</option>
+            </Select>
+          </Field>
+          <Field label="URL do orquestrador">
+            <Input
+              name="orchestratorUrl"
+              type="url"
+              defaultValue={value("orchestratorUrl")}
+            />
+          </Field>
+          <Field label="Token do orquestrador no Vault">
+            <Input
+              name="orchestratorCredentialRef"
+              defaultValue={value("orchestratorCredentialRef")}
+              placeholder="vault:124"
+            />
+          </Field>
+          <Field label="Credencial do registry no Vault">
+            <Input
+              name="registryCredentialRef"
+              defaultValue={value("registryCredentialRef")}
+              placeholder="vault:125"
+              required
+            />
+          </Field>
+        </ProfileSection>
+        <ProfileSection title="DNS, domínios e TLS">
+          <Field label="Provedor DNS">
+            <Input
+              name="dnsProvider"
+              defaultValue={value("dnsProvider")}
+              required
+            />
+          </Field>
+          <Field label="Zona DNS">
+            <Input
+              name="dnsZone"
+              defaultValue={value("dnsZone")}
+              placeholder="cliente.com.br"
+              required
+            />
+          </Field>
+          <Field label="Token DNS no Vault">
+            <Input
+              name="dnsCredentialRef"
+              defaultValue={value("dnsCredentialRef")}
+              placeholder="vault:126"
+              required
+            />
+          </Field>
+          <Field label="Domínio Agents">
+            <Input
+              name="agentsDomain"
+              defaultValue={value("agentsDomain")}
+              required
+            />
+          </Field>
+          <Field label="Domínio Chatwoot">
+            <Input
+              name="chatwootDomain"
+              defaultValue={value("chatwootDomain")}
+              required
+            />
+          </Field>
+          <Field label="Domínio Baileys">
+            <Input
+              name="baileysDomain"
+              defaultValue={value("baileysDomain")}
+              required
+            />
+          </Field>
+          <Field label="Domínio Langfuse">
+            <Input
+              name="langfuseDomain"
+              defaultValue={value("langfuseDomain")}
+              required
+            />
+          </Field>
+          <Field label="E-mail para TLS">
+            <Input
+              name="acmeEmail"
+              type="email"
+              defaultValue={value("acmeEmail")}
+              required
+            />
+          </Field>
+        </ProfileSection>
+        <ProfileSection title="Backup e autorização">
+          <Field label="Provedor do backup">
+            <Input
+              name="backupProvider"
+              defaultValue={value("backupProvider")}
+              placeholder="Cloudflare R2"
+              required
+            />
+          </Field>
+          <Field label="Bucket ou destino">
+            <Input
+              name="backupDestination"
+              defaultValue={value("backupDestination")}
+              required
+            />
+          </Field>
+          <Field label="Credencial do backup no Vault">
+            <Input
+              name="backupCredentialRef"
+              defaultValue={value("backupCredentialRef")}
+              placeholder="vault:127"
+              required
+            />
+          </Field>
+          <Field label="Autorizado por">
+            <Input name="authorizedBy" defaultValue={value("authorizedBy")} />
+          </Field>
+          <Field label="Observações">
+            <Input name="notes" defaultValue={value("notes")} />
+          </Field>
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              name="authorized"
+              type="checkbox"
+              defaultChecked={profile?.authorized ?? false}
+            />
+            Autorizo o início da implantação nesta infraestrutura
+          </label>
+        </ProfileSection>
+        <Button type="submit">Salvar e validar ficha</Button>
+      </form>
+    </div>
+  );
+}
+
+function ProfileSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <h2 className="mb-4 font-semibold text-text-primary">{title}</h2>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{children}</div>
+    </Card>
   );
 }
 
