@@ -51,7 +51,7 @@ type LocalAgent = Workspace["localAgents"][number];
 const SECTIONS = [
   { id: "overview", label: "Visão geral", icon: Activity },
   { id: "customers", label: "Clientes", icon: Users },
-  { id: "pipeline", label: "Pipeline", icon: CircleDollarSign },
+  { id: "pipeline", label: "Comercial", icon: CircleDollarSign },
   { id: "contracts", label: "Planos e contratos", icon: FileText },
   { id: "deployments", label: "Implantações", icon: Server },
   { id: "monitoring", label: "Monitoramento", icon: HeartPulse },
@@ -68,6 +68,18 @@ const badgeVariant = (status: string) => {
     return "warning" as const;
   return "secondary" as const;
 };
+
+function isInstalledDeployment(
+  deployment: Deployment,
+  runs: Workspace["provisionRuns"],
+) {
+  const run = runs.find((item) => String(item.deploymentId) === deployment.id);
+  return (
+    deployment.status === "ACTIVE" ||
+    deployment.health === "HEALTHY" ||
+    run?.status === "SUCCEEDED"
+  );
+}
 
 function Metric({
   label,
@@ -142,6 +154,14 @@ export function CrmPage() {
         ),
       ),
     [data, search],
+  );
+  const pendingDeployments = useMemo(
+    () =>
+      deployments.filter(
+        (deployment) =>
+          !isInstalledDeployment(deployment, data?.provisionRuns ?? []),
+      ),
+    [data?.provisionRuns, deployments],
   );
   const agents = useMemo(
     () =>
@@ -266,7 +286,7 @@ export function CrmPage() {
             )}
             {section === "deployments" && (
               <Deployments
-                rows={deployments}
+                rows={pendingDeployments}
                 contracts={data.contracts}
                 creating={creating}
                 onSubmit={submitDeployment}
@@ -337,6 +357,9 @@ function DeploymentFlowNav({
 
 function Overview({ data }: { data: Workspace }) {
   const s = data.summary;
+  const pending = data.deployments.filter(
+    (deployment) => !isInstalledDeployment(deployment, data.provisionRuns),
+  );
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -359,7 +382,7 @@ function Overview({ data }: { data: Workspace }) {
             Implantações em andamento
           </h2>
           <div className="mt-4 space-y-3">
-            {data.deployments.slice(0, 5).map((x) => (
+            {pending.slice(0, 5).map((x) => (
               <Row
                 key={x.id}
                 title={x.customer.name}
@@ -367,6 +390,12 @@ function Overview({ data }: { data: Workspace }) {
                 status={x.status}
               />
             ))}
+            {pending.length === 0 && (
+              <p className="text-sm text-text-secondary">
+                Nenhuma implantação pendente. Clientes instalados ficam em
+                Clientes.
+              </p>
+            )}
           </div>
         </Card>
         <Card>
@@ -583,38 +612,65 @@ function Pipeline({
     await reload();
   };
   return (
-    <div className="grid gap-4 xl:grid-cols-4">
-      {columns.map((status) => (
-        <div key={status} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-text-primary">{status}</h2>
-            <Badge>
-              {rows.filter((x) => x.commercialStatus === status).length}
-            </Badge>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <p className="font-medium text-text-primary">
+          Acompanhamento comercial
+        </p>
+        <p className="mt-1 text-sm text-text-secondary">
+          Mova cada lead conforme a negociação avança. Após a instalação, o
+          cliente passa a ser acompanhado em Clientes.
+        </p>
+      </Card>
+      <div className="grid gap-4 xl:grid-cols-4">
+        {columns.map((status) => (
+          <div key={status} className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-text-primary">
+                {
+                  {
+                    LEAD: "Lead",
+                    QUALIFIED: "Qualificado",
+                    PROPOSAL: "Proposta",
+                    ACTIVE: "Cliente ativo",
+                  }[status]
+                }
+              </h2>
+              <Badge>
+                {rows.filter((x) => x.commercialStatus === status).length}
+              </Badge>
+            </div>
+            {rows
+              .filter((x) => x.commercialStatus === status)
+              .map((x) => (
+                <Card key={x.id} className="p-4">
+                  <p className="font-medium text-text-primary">{x.name}</p>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    {x.plan.replaceAll("_", " ")}
+                  </p>
+                  <Select
+                    className="mt-3"
+                    value={x.commercialStatus}
+                    onChange={(event) => void move(x.id, event.target.value)}
+                  >
+                    {columns.map((column) => (
+                      <option key={column} value={column}>
+                        {
+                          {
+                            LEAD: "Lead",
+                            QUALIFIED: "Qualificado",
+                            PROPOSAL: "Proposta",
+                            ACTIVE: "Cliente ativo",
+                          }[column]
+                        }
+                      </option>
+                    ))}
+                  </Select>
+                </Card>
+              ))}
           </div>
-          {rows
-            .filter((x) => x.commercialStatus === status)
-            .map((x) => (
-              <Card key={x.id} className="p-4">
-                <p className="font-medium text-text-primary">{x.name}</p>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {x.plan.replaceAll("_", " ")}
-                </p>
-                <Select
-                  className="mt-3"
-                  value={x.commercialStatus}
-                  onChange={(event) => void move(x.id, event.target.value)}
-                >
-                  {columns.map((column) => (
-                    <option key={column} value={column}>
-                      {column}
-                    </option>
-                  ))}
-                </Select>
-              </Card>
-            ))}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -629,6 +685,9 @@ function Contracts({
   reload(): Promise<void>;
 }) {
   const navigate = useNavigate();
+  const [editing, setEditing] = useState<Workspace["contracts"][number] | null>(
+    null,
+  );
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const values: Record<string, unknown> = Object.fromEntries(
@@ -641,6 +700,76 @@ function Contracts({
   };
   return (
     <div className="space-y-5">
+      {editing && (
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-text-primary">Editar contrato</h2>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setEditing(null)}
+            >
+              Cancelar
+            </Button>
+          </div>
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const values = Object.fromEntries(
+                new FormData(event.currentTarget),
+              );
+              const response = await api.api.v1.crm
+                .contracts({ id: editing.id })
+                .patch(values);
+              if (!response.error) {
+                setEditing(null);
+                await reload();
+              }
+            }}
+          >
+            <Field label="Status">
+              <Select name="status" defaultValue={editing.status}>
+                <option value="ACTIVE">Ativo</option>
+                <option value="PAUSED">Pausado</option>
+                <option value="CANCELLED">Cancelado</option>
+                <option value="EXPIRED">Expirado</option>
+              </Select>
+            </Field>
+            <Field label="Término">
+              <Input
+                name="endsAt"
+                type="date"
+                defaultValue={
+                  editing.endsAt
+                    ? new Date(editing.endsAt).toISOString().slice(0, 10)
+                    : ""
+                }
+              />
+            </Field>
+            <Field label="Mensalidade">
+              <Input
+                name="monthlyAmount"
+                type="number"
+                step="0.01"
+                defaultValue={String(editing.monthlyAmount ?? "")}
+              />
+            </Field>
+            <Field label="Dia de cobrança">
+              <Input
+                name="billingDay"
+                type="number"
+                min="1"
+                max="31"
+                defaultValue={editing.billingDay ?? ""}
+              />
+            </Field>
+            <div className="md:col-span-2">
+              <Button type="submit">Salvar alterações</Button>
+            </div>
+          </form>
+        </Card>
+      )}
       {creating && (
         <Card>
           <h2 className="mb-4 font-semibold text-text-primary">
@@ -718,12 +847,23 @@ function Contracts({
         </h2>
         <div className="space-y-3">
           {data.contracts.map((item) => (
-            <Row
+            <div
               key={item.id}
-              title={item.customer.name}
-              subtitle={`${item.planVersion.displayName} · ${item.planVersion.version}`}
-              status={item.status}
-            />
+              className="flex items-center justify-between rounded-lg border border-border p-3"
+            >
+              <Row
+                title={item.customer.name}
+                subtitle={`${item.planVersion.displayName} · ${item.planVersion.version}`}
+                status={item.status}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setEditing(item)}
+              >
+                Editar
+              </Button>
+            </div>
           ))}
         </div>
       </Card>
@@ -1311,186 +1451,152 @@ function Onboarding({
     await api.api.v1.crm.deployments({ id }).onboarding.post();
     await reload();
   };
-  const decide = async (id: string, status: "APPROVED" | "REJECTED") => {
-    await api.api.v1.crm.approvals({ id }).patch({ status });
-    await reload();
-  };
   return (
     <div className="space-y-4">
-      {data.deployments.map((deployment) => {
-        const items = data.checklist.filter(
-          (x) => String(x.deploymentId) === deployment.id,
-        );
-        const approvals = data.approvals.filter(
-          (x) => String(x.deploymentId) === deployment.id,
-        );
-        const profile = data.installationProfiles.find(
-          (item) => String(item.deploymentId) === deployment.id,
-        );
-        const run = data.provisionRuns.find(
-          (item) => String(item.deploymentId) === deployment.id,
-        );
-        const running = run && ["QUEUED", "RUNNING"].includes(run.status);
-        const sshReady = Boolean(
-          profile?.serverHost &&
-            profile?.serverUser &&
-            profile?.sshCredentialRef,
-        );
-        return (
-          <Card key={deployment.id}>
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="font-semibold text-text-primary">
-                  {deployment.customer.name}
-                </h2>
-                <p className="text-sm text-text-secondary">{deployment.name}</p>
+      {data.deployments
+        .filter(
+          (deployment) =>
+            !isInstalledDeployment(deployment, data.provisionRuns),
+        )
+        .map((deployment) => {
+          const items = data.checklist.filter(
+            (x) => String(x.deploymentId) === deployment.id,
+          );
+          const profile = data.installationProfiles.find(
+            (item) => String(item.deploymentId) === deployment.id,
+          );
+          const run = data.provisionRuns.find(
+            (item) => String(item.deploymentId) === deployment.id,
+          );
+          const running = run && ["QUEUED", "RUNNING"].includes(run.status);
+          const sshReady = Boolean(
+            profile?.serverHost &&
+              profile?.serverUser &&
+              profile?.sshCredentialRef,
+          );
+          return (
+            <Card key={deployment.id}>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-text-primary">
+                    {deployment.customer.name}
+                  </h2>
+                  <p className="text-sm text-text-secondary">
+                    {deployment.name}
+                  </p>
+                </div>
+                <Badge>
+                  {items.filter((x) => x.status === "DONE").length}/
+                  {items.length}
+                </Badge>
+                {items.length === 0 && (
+                  <Button
+                    size="sm"
+                    onClick={() => void initialize(deployment.id)}
+                  >
+                    Criar checklist oficial
+                  </Button>
+                )}
               </div>
-              <Badge>
-                {items.filter((x) => x.status === "DONE").length}/{items.length}
-              </Badge>
-              {items.length === 0 && (
+              <div className="mb-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+                <div>
+                  <p className="font-medium text-text-primary">
+                    Provisionamento da VPS
+                  </p>
+                  <p className="text-sm text-text-secondary">
+                    {run?.summary ??
+                      (profile?.readiness.ready
+                        ? "Dados completos. A VPS está pronta para conexão."
+                        : `Dados pendentes: ${profile?.readiness.missing.join(", ") ?? "infraestrutura"}`)}
+                  </p>
+                </div>
                 <Button
                   size="sm"
-                  onClick={() => void initialize(deployment.id)}
+                  variant="secondary"
+                  disabled={!sshReady || Boolean(running)}
+                  onClick={() => void startConnectionTest(deployment.id)}
                 >
-                  Criar checklist oficial
+                  Testar acesso
                 </Button>
-              )}
-            </div>
-            <div className="mb-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
-              <div>
-                <p className="font-medium text-text-primary">
-                  Provisionamento da VPS
-                </p>
-                <p className="text-sm text-text-secondary">
-                  {run?.summary ??
-                    (profile?.readiness.ready
-                      ? "Dados completos. A VPS está pronta para conexão."
-                      : `Dados pendentes: ${profile?.readiness.missing.join(", ") ?? "infraestrutura"}`)}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!sshReady || Boolean(running)}
-                onClick={() => void startConnectionTest(deployment.id)}
-              >
-                Testar acesso
-              </Button>
-              <Button
-                size="sm"
-                disabled={!profile?.readiness.ready || Boolean(running)}
-                onClick={() => void startInstallation(deployment.id)}
-              >
-                Instalar stack
-              </Button>
-            </div>
-            {run && (
-              <div className="mb-5 rounded-lg bg-bg-tertiary p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <strong className="text-text-primary">{run.phase}</strong>
-                  <Badge variant={badgeVariant(run.status)}>{run.status}</Badge>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-secondary">
-                  <div
-                    className="h-full bg-accent"
-                    style={{ width: `${run.progress}%` }}
-                  />
-                </div>
-                {run.error && (
-                  <p className="mt-3 text-error text-sm">{run.error}</p>
-                )}
-                <div className="mt-3 max-h-48 space-y-1 overflow-y-auto text-text-secondary text-xs">
-                  {(run.logs as Array<{ at: string; message: string }>).map(
-                    (entry) => (
-                      <p key={`${entry.at}-${entry.message}`}>
-                        {new Date(entry.at).toLocaleTimeString("pt-BR")} ·{" "}
-                        {entry.message}
-                      </p>
-                    ),
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="space-y-2">
-              {items.map((x) => (
-                <div
-                  key={x.id}
-                  className="flex items-center justify-between rounded-lg border border-border p-3"
+                <Button
+                  size="sm"
+                  disabled={!profile?.readiness.ready || Boolean(running)}
+                  onClick={() => void startInstallation(deployment.id)}
                 >
-                  <div>
-                    <p className="font-medium text-text-primary">{x.title}</p>
-                    <p className="text-sm text-text-secondary">
-                      {x.phase}
-                      {x.responsible ? ` · ${x.responsible}` : ""}
-                    </p>
-                  </div>
-                  {x.status === "DONE" ? (
-                    <CheckCircle2 className="h-5 w-5 text-success" />
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => void complete(x.id)}
-                    >
-                      Concluir
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {approvals.length > 0 && (
-              <div className="mt-5 border-border border-t pt-4">
-                <h3 className="mb-3 font-medium text-text-primary">
-                  Gates de aprovação
-                </h3>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {approvals.map((approval) => (
-                    <div
-                      key={approval.id}
-                      className="flex items-center justify-between rounded-lg bg-bg-tertiary p-3"
-                    >
-                      <div>
-                        <p className="font-medium text-sm text-text-primary">
-                          {approval.gate}
-                        </p>
-                        <Badge variant={badgeVariant(approval.status)}>
-                          {approval.status}
-                        </Badge>
-                      </div>
-                      {approval.status === "PENDING" && (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => void decide(approval.id, "REJECTED")}
-                          >
-                            Rejeitar
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => void decide(approval.id, "APPROVED")}
-                          >
-                            Aprovar
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                  Instalar stack
+                </Button>
               </div>
-            )}
-          </Card>
-        );
-      })}
-      {data.deployments.length === 0 && (
+              {run && (
+                <div className="mb-5 rounded-lg bg-bg-tertiary p-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <strong className="text-text-primary">{run.phase}</strong>
+                    <Badge variant={badgeVariant(run.status)}>
+                      {run.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-secondary">
+                    <div
+                      className="h-full bg-accent"
+                      style={{ width: `${run.progress}%` }}
+                    />
+                  </div>
+                  {run.error && (
+                    <p className="mt-3 text-error text-sm">{run.error}</p>
+                  )}
+                  <div className="mt-3 max-h-48 space-y-1 overflow-y-auto text-text-secondary text-xs">
+                    {(run.logs as Array<{ at: string; message: string }>).map(
+                      (entry) => (
+                        <p key={`${entry.at}-${entry.message}`}>
+                          {new Date(entry.at).toLocaleTimeString("pt-BR")} ·{" "}
+                          {entry.message}
+                        </p>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2">
+                {items.map((x) => (
+                  <div
+                    key={x.id}
+                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                  >
+                    <div>
+                      <p className="font-medium text-text-primary">{x.title}</p>
+                      <p className="text-sm text-text-secondary">
+                        {x.phase}
+                        {x.responsible ? ` · ${x.responsible}` : ""}
+                      </p>
+                    </div>
+                    {x.status === "DONE" ? (
+                      <CheckCircle2 className="h-5 w-5 text-success" />
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void complete(x.id)}
+                      >
+                        Concluir
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      {data.deployments.filter(
+        (deployment) => !isInstalledDeployment(deployment, data.provisionRuns),
+      ).length === 0 && (
         <EmptyState
           icon={ListChecks}
           title="Nenhuma implantação"
           description="Cadastre uma instalação para iniciar o onboarding."
         />
       )}
-      {data.deployments.length > 0 && (
+      {data.deployments.some(
+        (deployment) => !isInstalledDeployment(deployment, data.provisionRuns),
+      ) && (
         <div className="flex justify-end">
           <Button onClick={() => navigate("/crm/agents")}>
             Continuar para configurar o agente
