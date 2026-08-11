@@ -458,7 +458,7 @@ async function installStack(
   const remoteRoot = ".binary-insights";
   const agentsDb = secret(24);
   const agentsApp = secret(24);
-  const agentsEnv = `${[
+  let agentsEnv = `${[
     `AGENTS_IMAGE=binary-insights/thalya-agents:client-${runId}`,
     `PUBLIC_URL=https://${p.agentsDomain}`,
     `CORS_ORIGIN=https://${p.agentsDomain}`,
@@ -535,6 +535,25 @@ async function installStack(
       client,
       `set -eu; mkdir -p ${remoteRoot}/source ${remoteRoot}/agents ${remoteRoot}/chatwoot ${remoteRoot}/langfuse`,
     );
+    const port80Busy = await exec(
+      client,
+      "ss -lntH 2>/dev/null | awk '$4 ~ /:80$/ {found=1} END {exit(found ? 0 : 1)}'",
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (port80Busy) {
+      agentsEnv += "CADDY_HTTP_PORT=8080\nCADDY_HTTPS_PORT=8443\n";
+      await log(
+        ctx,
+        runId,
+        {
+          level: "info",
+          message: "Porta 80 ocupada; usando Caddy nas portas 8080/8443.",
+        },
+        base,
+      );
+    }
+    await Bun.write(localFiles[1] as string, agentsEnv);
     await patchRun(ctx, runId, { phase: "UPLOADING", progress: 35 }, base);
     await upload(client, archive, `${remoteRoot}/source.tgz`);
     await upload(
