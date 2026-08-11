@@ -1,7 +1,9 @@
+import { randomBytes, randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/../generated/prisma/client";
 import basePrisma from "@/api/lib/prisma";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
+import { createVaultEntry } from "@/modules/vault/service";
 import { CRM_PLAN_DEFINITIONS } from "./plans";
 
 export const CRM_PLANS = CRM_PLAN_DEFINITIONS.map((plan) => ({
@@ -78,6 +80,7 @@ export async function getCrmWorkspace(
       usageSnapshots,
       maintenance,
       audit,
+      localAgents,
     ] = await Promise.all([
       db.crmCustomer.findMany({
         orderBy: { updatedAt: "desc" },
@@ -162,6 +165,16 @@ export async function getCrmWorkspace(
         orderBy: { id: "desc" },
         take: 200,
       }),
+      db.agent.findMany({
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          enabled: true,
+          mode: true,
+          updatedAt: true,
+        },
+      }),
     ]);
     return {
       plans: CRM_PLANS,
@@ -180,6 +193,14 @@ export async function getCrmWorkspace(
       customers: customers.map(json),
       deployments: deployments.map(json),
       agents: agents.map(json),
+      localAgents: localAgents.map((agent) =>
+        json({
+          ...agent,
+          source: "LOCAL",
+          status: agent.enabled ? "ACTIVE" : "INACTIVE",
+          deepLink: `/agents/${agent.id}/general`,
+        }),
+      ),
       checklist: checklist.map(json),
       alerts: alerts.map(json),
       planVersions: planVersions.map(json),
@@ -232,24 +253,40 @@ export async function createCrmDeployment(
   const name = String(input.name ?? "").trim();
   if (!name || customerId <= 0n)
     throw new AppError("customerId and name are required", 400);
+  const customerExists = await runScopedOn(base, ctx, (db) =>
+    db.crmCustomer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    }),
+  );
+  if (!customerExists) throw new NotFoundError("customer not found");
+  const generated = !input.heartbeatSecretRef;
+  const deploymentKey = String(input.deploymentKey ?? randomUUID());
+  const heartbeatSecret = generated ? randomBytes(32).toString("hex") : null;
+  const heartbeatSecretRef = generated
+    ? (
+        await createVaultEntry(
+          ctx,
+          {
+            name: `fleet-heartbeat-${deploymentKey}`,
+            value: heartbeatSecret as string,
+            kind: "generic",
+          },
+          undefined,
+          undefined,
+          base,
+        )
+      ).ref
+    : String(input.heartbeatSecretRef);
   const row = await runScopedOn(base, ctx, async (db) => {
-    if (
-      !(await db.crmCustomer.findUnique({
-        where: { id: customerId },
-        select: { id: true },
-      }))
-    )
-      throw new NotFoundError("customer not found");
     return db.crmDeployment.create({
       data: {
         tenantId: tenantId(ctx),
         customerId,
         name,
-        deploymentKey: input.deploymentKey ? String(input.deploymentKey) : null,
+        deploymentKey,
         instanceId: input.instanceId ? String(input.instanceId) : null,
-        heartbeatSecretRef: input.heartbeatSecretRef
-          ? String(input.heartbeatSecretRef)
-          : null,
+        heartbeatSecretRef,
         status: String(input.status ?? "PLANNED"),
         orchestrator: input.orchestrator ? String(input.orchestrator) : null,
         vpsProvider: input.vpsProvider ? String(input.vpsProvider) : null,
@@ -261,7 +298,16 @@ export async function createCrmDeployment(
       },
     });
   });
-  return json(row);
+  return {
+    ...json(row),
+    fleetConfig: heartbeatSecret
+      ? {
+          controlUrl: process.env.PUBLIC_URL ?? "",
+          deploymentKey,
+          heartbeatSecret,
+        }
+      : null,
+  };
 }
 
 export async function createCrmAgent(

@@ -45,6 +45,7 @@ type Workspace = NonNullable<
 type Customer = Workspace["customers"][number];
 type Deployment = Workspace["deployments"][number];
 type RemoteAgent = Workspace["agents"][number];
+type LocalAgent = Workspace["localAgents"][number];
 
 const SECTIONS = [
   { id: "overview", label: "Visão geral", icon: Activity },
@@ -110,6 +111,11 @@ export function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
+  const [fleetConfig, setFleetConfig] = useState<{
+    controlUrl: string;
+    deploymentKey: string;
+    heartbeatSecret: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -167,6 +173,7 @@ export function CrmPage() {
     const values = Object.fromEntries(new FormData(e.currentTarget));
     const response = await api.api.v1.crm.deployments.post(values);
     if (!response.error) {
+      setFleetConfig(response.data.fleetConfig);
       setCreating(false);
       await load();
     }
@@ -241,6 +248,31 @@ export function CrmPage() {
       <DataBoundary loading={loading} error={error} onRetry={load}>
         {data && (
           <>
+            {fleetConfig && (
+              <Card className="border-success p-5">
+                <h2 className="font-semibold text-text-primary">
+                  Monitoramento pronto para a nova VPS
+                </h2>
+                <p className="mt-1 text-sm text-text-secondary">
+                  Copie este bloco agora. O segredo é exibido somente nesta
+                  confirmação.
+                </p>
+                <pre className="mt-4 overflow-x-auto rounded-lg bg-bg-tertiary p-4 text-sm text-text-primary">
+                  {`FLEET_CONTROL_URL=${fleetConfig.controlUrl}
+FLEET_DEPLOYMENT_KEY=${fleetConfig.deploymentKey}
+FLEET_HEARTBEAT_SECRET=${fleetConfig.heartbeatSecret}
+FLEET_REPORT_INTERVAL_MS=60000`}
+                </pre>
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setFleetConfig(null)}
+                >
+                  Já copiei
+                </Button>
+              </Card>
+            )}
             {section === "overview" && <Overview data={data} />}
             {section === "customers" && (
               <Customers
@@ -272,6 +304,7 @@ export function CrmPage() {
             {section === "agents" && (
               <Agents
                 rows={agents}
+                localRows={data.localAgents}
                 deployments={data.deployments}
                 plans={data.plans}
                 creating={creating}
@@ -784,6 +817,7 @@ function Deployments({
 
 function Agents({
   rows,
+  localRows,
   deployments,
   plans,
   creating,
@@ -792,6 +826,7 @@ function Agents({
   setSearch,
 }: {
   rows: RemoteAgent[];
+  localRows: LocalAgent[];
   deployments: Workspace["deployments"];
   plans: Workspace["plans"];
   creating: boolean;
@@ -845,6 +880,27 @@ function Agents({
       )}
       <SearchBox value={search} setValue={setSearch} />
       <div className="grid gap-3 lg:grid-cols-2">
+        {localRows
+          .filter((x) => x.name.toLowerCase().includes(search.toLowerCase()))
+          .map((x) => (
+            <Card key={`local-${x.id}`} className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-text-primary">{x.name}</h3>
+                  <p className="text-sm text-text-secondary">
+                    Binary Insights · agente desta instalação
+                  </p>
+                </div>
+                <Badge variant={badgeVariant(x.status)}>{x.status}</Badge>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-sm text-text-secondary">
+                <span>{x.mode}</span>
+                <a href={x.deepLink} className="text-accent">
+                  Abrir agente
+                </a>
+              </div>
+            </Card>
+          ))}
         {rows.map((x) => (
           <Card key={x.id} className="p-4">
             <div className="flex items-start justify-between">

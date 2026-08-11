@@ -74,4 +74,21 @@ describe("buildOnboardingEnv", () => {
       new URL(b.DATABASE_URL).password,
     );
   });
+
+  test("includes the Binary Insights fleet reporter configuration", () => {
+    const env = buildOnboardingEnv({
+      publicUrl: "https://agents.cliente.com",
+      fleetControlUrl: "https://agents.binaryinsights.com.br/",
+      fleetDeploymentKey: "cliente-prod-123",
+      fleetHeartbeatSecret: "unique-secret",
+      fleetChatwootHealthUrl: "https://chatwoot.cliente.com",
+      fleetBaileysHealthUrl: "https://baileys.cliente.com",
+      fleetLangfuseHealthUrl: "https://langfuse.cliente.com",
+    });
+    expect(env.FLEET_CONTROL_URL).toBe("https://agents.binaryinsights.com.br");
+    expect(env.FLEET_DEPLOYMENT_KEY).toBe("cliente-prod-123");
+    expect(env.FLEET_HEARTBEAT_SECRET).toBe("unique-secret");
+    expect(env.FLEET_REPORT_INTERVAL_MS).toBe("60000");
+    expect(env.FLEET_CHATWOOT_HEALTH_URL).toBe("https://chatwoot.cliente.com");
+  });
 });

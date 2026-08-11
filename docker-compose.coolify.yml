@@ -32,6 +32,13 @@ services:
       # The defaults (./data/*) live on the ephemeral container FS and vanish on every redeploy.
       - BRANDING_STORAGE_DIR=/app/storage/branding
       - QUOTES_STORAGE_DIR=/app/storage/quotes
+      - FLEET_CONTROL_URL=${FLEET_CONTROL_URL:-}
+      - FLEET_DEPLOYMENT_KEY=${FLEET_DEPLOYMENT_KEY:-}
+      - FLEET_HEARTBEAT_SECRET=${FLEET_HEARTBEAT_SECRET:-}
+      - FLEET_REPORT_INTERVAL_MS=${FLEET_REPORT_INTERVAL_MS:-60000}
+      - FLEET_CHATWOOT_HEALTH_URL=${FLEET_CHATWOOT_HEALTH_URL:-}
+      - FLEET_BAILEYS_HEALTH_URL=${FLEET_BAILEYS_HEALTH_URL:-}
+      - FLEET_LANGFUSE_HEALTH_URL=${FLEET_LANGFUSE_HEALTH_URL:-}
       # NOTE: TWO roles by design. The superuser (SERVICE_USER_DBUSER, also the postgres
       # container's owner) runs migrations + bootstrap. The app role (SERVICE_USER_APPDBUSER,
       # created by db-bootstrap.ts) is NON-superuser/NON-bypassrls so RLS isolation holds — the

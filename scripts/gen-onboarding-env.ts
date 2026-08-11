@@ -22,6 +22,12 @@ export interface OnboardingEnvOptions {
   caddyDomain?: string;
   // Optional ACME contact for expiry notices + better rate-limit standing. Caddy works without it.
   acmeEmail?: string;
+  fleetControlUrl?: string;
+  fleetDeploymentKey?: string;
+  fleetHeartbeatSecret?: string;
+  fleetChatwootHealthUrl?: string;
+  fleetBaileysHealthUrl?: string;
+  fleetLangfuseHealthUrl?: string;
 }
 
 export interface OnboardingEnv {
@@ -43,6 +49,13 @@ export interface OnboardingEnv {
   // Consumed only by docker-compose.portainer.yml's bundled Caddy; harmless for the BYO-proxy stack.
   CADDY_DOMAIN: string;
   ACME_EMAIL?: string;
+  FLEET_CONTROL_URL?: string;
+  FLEET_DEPLOYMENT_KEY?: string;
+  FLEET_HEARTBEAT_SECRET?: string;
+  FLEET_REPORT_INTERVAL_MS?: string;
+  FLEET_CHATWOOT_HEALTH_URL?: string;
+  FLEET_BAILEYS_HEALTH_URL?: string;
+  FLEET_LANGFUSE_HEALTH_URL?: string;
 }
 
 // URL-safe secret: hex has no characters that need escaping inside a postgres:// URL or a .env value.
@@ -110,6 +123,25 @@ export function buildOnboardingEnv(opts: OnboardingEnvOptions): OnboardingEnv {
     LANGGRAPH_DATABASE_URL: databaseUrl,
     CADDY_DOMAIN: caddyDomain,
     ...(acmeEmail ? { ACME_EMAIL: acmeEmail } : {}),
+    ...(opts.fleetControlUrl &&
+    opts.fleetDeploymentKey &&
+    opts.fleetHeartbeatSecret
+      ? {
+          FLEET_CONTROL_URL: opts.fleetControlUrl.replace(/\/+$/, ""),
+          FLEET_DEPLOYMENT_KEY: opts.fleetDeploymentKey,
+          FLEET_HEARTBEAT_SECRET: opts.fleetHeartbeatSecret,
+          FLEET_REPORT_INTERVAL_MS: "60000",
+          ...(opts.fleetChatwootHealthUrl
+            ? { FLEET_CHATWOOT_HEALTH_URL: opts.fleetChatwootHealthUrl }
+            : {}),
+          ...(opts.fleetBaileysHealthUrl
+            ? { FLEET_BAILEYS_HEALTH_URL: opts.fleetBaileysHealthUrl }
+            : {}),
+          ...(opts.fleetLangfuseHealthUrl
+            ? { FLEET_LANGFUSE_HEALTH_URL: opts.fleetLangfuseHealthUrl }
+            : {}),
+        }
+      : {}),
   };
 }
 
@@ -143,6 +175,7 @@ async function main() {
       "usage: bun scripts/gen-onboarding-env.ts --public-url https://agents.example.com [--out .env] [--force]\n" +
         "       [--db-host postgres] [--db-port 5432] [--db-name secretaria_v4_db] [--pg-user postgres] [--app-user secv4_app]\n" +
         "       [--caddy-domain agents.example.com] [--acme-email you@example.com]  # for docker-compose.portainer.yml",
+      "       [--fleet-control-url URL --fleet-deployment-key KEY --fleet-heartbeat-secret SECRET]",
     );
     process.exit(1);
   }
@@ -166,6 +199,12 @@ async function main() {
     appPort: flag("app-port"),
     caddyDomain: flag("caddy-domain"),
     acmeEmail: flag("acme-email"),
+    fleetControlUrl: flag("fleet-control-url"),
+    fleetDeploymentKey: flag("fleet-deployment-key"),
+    fleetHeartbeatSecret: flag("fleet-heartbeat-secret"),
+    fleetChatwootHealthUrl: flag("fleet-chatwoot-health-url"),
+    fleetBaileysHealthUrl: flag("fleet-baileys-health-url"),
+    fleetLangfuseHealthUrl: flag("fleet-langfuse-health-url"),
   });
 
   await Bun.write(out, serializeEnv(env));
