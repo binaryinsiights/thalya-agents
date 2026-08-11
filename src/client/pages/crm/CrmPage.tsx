@@ -25,7 +25,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Badge,
   Button,
@@ -53,10 +53,7 @@ const SECTIONS = [
   { id: "customers", label: "Clientes", icon: Users },
   { id: "pipeline", label: "Pipeline", icon: CircleDollarSign },
   { id: "contracts", label: "Planos e contratos", icon: FileText },
-  { id: "deployments", label: "Instalações", icon: Server },
-  { id: "installation-profile", label: "Ficha técnica", icon: FileText },
-  { id: "agents", label: "Agentes", icon: Bot },
-  { id: "onboarding", label: "Implantação", icon: ListChecks },
+  { id: "deployments", label: "Implantações", icon: Server },
   { id: "monitoring", label: "Monitoramento", icon: HeartPulse },
   { id: "maintenance", label: "Manutenções", icon: Wrench },
   { id: "audit", label: "Auditoria", icon: History },
@@ -113,11 +110,6 @@ export function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
-  const [fleetConfig, setFleetConfig] = useState<{
-    controlUrl: string;
-    deploymentKey: string;
-    heartbeatSecret: string;
-  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +160,7 @@ export function CrmPage() {
     if (!response.error) {
       setCreating(false);
       await load();
+      navigate("/crm/contracts");
     }
   };
   const submitDeployment = async (e: FormEvent<HTMLFormElement>) => {
@@ -175,9 +168,9 @@ export function CrmPage() {
     const values = Object.fromEntries(new FormData(e.currentTarget));
     const response = await api.api.v1.crm.deployments.post(values);
     if (!response.error) {
-      setFleetConfig(response.data.fleetConfig);
       setCreating(false);
       await load();
+      navigate("/crm/installation-profile");
     }
   };
   const submitAgent = async (e: FormEvent<HTMLFormElement>) => {
@@ -247,34 +240,12 @@ export function CrmPage() {
           </button>
         ))}
       </nav>
+      {["deployments", "installation-profile", "onboarding", "agents"].includes(
+        section,
+      ) && <DeploymentFlowNav active={section} navigate={navigate} />}
       <DataBoundary loading={loading} error={error} onRetry={load}>
         {data && (
           <>
-            {fleetConfig && (
-              <Card className="border-success p-5">
-                <h2 className="font-semibold text-text-primary">
-                  Monitoramento pronto para a nova VPS
-                </h2>
-                <p className="mt-1 text-sm text-text-secondary">
-                  Copie este bloco agora. O segredo é exibido somente nesta
-                  confirmação.
-                </p>
-                <pre className="mt-4 overflow-x-auto rounded-lg bg-bg-tertiary p-4 text-sm text-text-primary">
-                  {`FLEET_CONTROL_URL=${fleetConfig.controlUrl}
-FLEET_DEPLOYMENT_KEY=${fleetConfig.deploymentKey}
-FLEET_HEARTBEAT_SECRET=${fleetConfig.heartbeatSecret}
-FLEET_REPORT_INTERVAL_MS=60000`}
-                </pre>
-                <Button
-                  className="mt-3"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setFleetConfig(null)}
-                >
-                  Já copiei
-                </Button>
-              </Card>
-            )}
             {section === "overview" && <Overview data={data} />}
             {section === "customers" && (
               <Customers
@@ -296,12 +267,11 @@ FLEET_REPORT_INTERVAL_MS=60000`}
             {section === "deployments" && (
               <Deployments
                 rows={deployments}
-                customers={data.customers}
+                contracts={data.contracts}
                 creating={creating}
                 onSubmit={submitDeployment}
                 search={search}
                 setSearch={setSearch}
-                onFleetConfig={setFleetConfig}
               />
             )}
             {section === "installation-profile" && (
@@ -331,6 +301,37 @@ FLEET_REPORT_INTERVAL_MS=60000`}
         )}
       </DataBoundary>
     </PageContainer>
+  );
+}
+
+function DeploymentFlowNav({
+  active,
+  navigate,
+}: {
+  active: string;
+  navigate(path: string): void;
+}) {
+  const steps = [
+    ["deployments", "1. Cliente e instalação"],
+    ["installation-profile", "2. Acessos e hospedagem"],
+    ["onboarding", "3. Serviços e checklist"],
+    ["agents", "4. Configurar agente"],
+  ] as const;
+  return (
+    <Card className="p-3">
+      <div className="flex gap-2 overflow-x-auto">
+        {steps.map(([id, label]) => (
+          <Button
+            key={id}
+            size="sm"
+            variant={active === id ? "primary" : "secondary"}
+            onClick={() => navigate(`/crm/${id}`)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -473,8 +474,14 @@ function Customers({
             Cadastrar lead ou cliente
           </h2>
           <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
-            <Field label="Nome">
+            <Field label="Nome da empresa ou cliente">
               <Input name="name" required />
+            </Field>
+            <Field label="Razão social (opcional)">
+              <Input name="legalName" />
+            </Field>
+            <Field label="CPF ou CNPJ (opcional)">
+              <Input name="document" />
             </Field>
             <Field label="Nicho">
               <Input name="niche" placeholder="Odontologia, veterinária…" />
@@ -485,7 +492,10 @@ function Customers({
             <Field label="Telefone">
               <Input name="contactPhone" />
             </Field>
-            <Field label="Plano">
+            <Field label="E-mail do responsável">
+              <Input name="contactEmail" type="email" />
+            </Field>
+            <Field label="Plano de interesse">
               <Select name="plan" required>
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -493,6 +503,9 @@ function Customers({
                   </option>
                 ))}
               </Select>
+            </Field>
+            <Field label="Observações">
+              <Input name="notes" />
             </Field>
             <Field label="Etapa comercial">
               <Select name="commercialStatus">
@@ -615,13 +628,16 @@ function Contracts({
   creating: boolean;
   reload(): Promise<void>;
 }) {
+  const navigate = useNavigate();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const values: Record<string, unknown> = Object.fromEntries(
       new FormData(event.currentTarget),
     );
-    await api.api.v1.crm.contracts.post(values);
+    const response = await api.api.v1.crm.contracts.post(values);
+    if (response.error) return;
     await reload();
+    navigate("/crm/deployments");
   };
   return (
     <div className="space-y-5">
@@ -717,25 +733,20 @@ function Contracts({
 
 function Deployments({
   rows,
-  customers,
+  contracts,
   creating,
   onSubmit,
   search,
   setSearch,
-  onFleetConfig,
 }: {
   rows: Deployment[];
-  customers: Workspace["customers"];
+  contracts: Workspace["contracts"];
   creating: boolean;
   onSubmit(e: FormEvent<HTMLFormElement>): void;
   search: string;
   setSearch(v: string): void;
-  onFleetConfig(value: {
-    controlUrl: string;
-    deploymentKey: string;
-    heartbeatSecret: string;
-  }): void;
 }) {
+  const navigate = useNavigate();
   return (
     <div className="space-y-4">
       {creating && (
@@ -744,11 +755,14 @@ function Deployments({
             Cadastrar instalação dedicada
           </h2>
           <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
-            <Field label="Cliente">
-              <Select name="customerId" required>
-                {customers.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
+            <Field label="Contrato vendido">
+              <Select name="contractId" required>
+                {contracts.map((contract) => (
+                  <option key={contract.id} value={contract.id}>
+                    {contract.customer.name} ·{" "}
+                    {contract.planVersion.displayName}
+                    {" · "}
+                    {contract.planVersion.version}
                   </option>
                 ))}
               </Select>
@@ -756,35 +770,11 @@ function Deployments({
             <Field label="Nome da instalação">
               <Input name="name" required placeholder="Produção principal" />
             </Field>
-            <Field label="Domínio">
-              <Input name="domain" />
-            </Field>
-            <Field label="Chave pública da implantação">
-              <Input name="deploymentKey" placeholder="cliente-producao-uuid" />
-            </Field>
-            <Field label="Instance ID">
-              <Input name="instanceId" />
-            </Field>
-            <Field label="Referência do segredo no Vault">
-              <Input name="heartbeatSecretRef" placeholder="vault:123" />
-            </Field>
-            <Field label="Orquestrador">
-              <Input name="orchestrator" placeholder="Coolify" />
-            </Field>
-            <Field label="VPS">
-              <Input name="vpsProvider" />
-            </Field>
-            <Field label="URL Agents">
-              <Input name="agentsUrl" type="url" />
-            </Field>
-            <Field label="URL Chatwoot">
-              <Input name="chatwootUrl" type="url" />
-            </Field>
-            <Field label="URL Langfuse">
-              <Input name="langfuseUrl" type="url" />
-            </Field>
-            <Field label="URL Baileys">
-              <Input name="baileysUrl" type="url" />
+            <Field label="Ambiente">
+              <Select name="environment" defaultValue="PRODUCTION">
+                <option value="PRODUCTION">Produção</option>
+                <option value="STAGING">Preparação</option>
+              </Select>
             </Field>
             <div className="md:col-span-2">
               <Button type="submit">Salvar instalação</Button>
@@ -810,21 +800,11 @@ function Deployments({
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={async () => {
-                    const response = await api.api.v1.crm
-                      .deployments({ id: x.id })
-                      ["fleet-config"].rotate.post();
-                    if (!response.error)
-                      onFleetConfig(
-                        response.data as {
-                          controlUrl: string;
-                          deploymentKey: string;
-                          heartbeatSecret: string;
-                        },
-                      );
-                  }}
+                  onClick={() =>
+                    navigate(`/crm/installation-profile?deployment=${x.id}`)
+                  }
                 >
-                  Gerar novo bloco FLEET
+                  Acessos e hospedagem
                 </Button>
                 {[x.agentsUrl, x.chatwootUrl, x.langfuseUrl, x.baileysUrl]
                   .filter(Boolean)
@@ -855,8 +835,14 @@ function InstallationProfiles({
   data: Workspace;
   reload(): Promise<void>;
 }) {
-  const [deploymentId, setDeploymentId] = useState(
-    data.deployments[0]?.id ?? "",
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedDeployment = searchParams.get("deployment");
+  const [deploymentId, setDeploymentId] = useState(() =>
+    requestedDeployment &&
+    data.deployments.some((item) => item.id === requestedDeployment)
+      ? requestedDeployment
+      : (data.deployments[0]?.id ?? ""),
   );
   const profile = data.installationProfiles.find(
     (item) => String(item.deploymentId) === deploymentId,
@@ -864,13 +850,15 @@ function InstallationProfiles({
   const [method, setMethod] = useState(
     String(profile?.orchestrator ?? "DOCKER_COMPOSE"),
   );
+  const [dnsMode, setDnsMode] = useState(String(profile?.dnsMode ?? "MANUAL"));
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
   useEffect(() => {
     setMethod(String(profile?.orchestrator ?? "DOCKER_COMPOSE"));
+    setDnsMode(String(profile?.dnsMode ?? "MANUAL"));
     setSaveState("idle");
-  }, [profile?.orchestrator]);
+  }, [profile?.orchestrator, profile?.dnsMode]);
   const deployment = data.deployments.find((item) => item.id === deploymentId);
   const value = (key: string) =>
     String(
@@ -892,6 +880,7 @@ function InstallationProfiles({
     }
     await reload();
     setSaveState("saved");
+    navigate("/crm/onboarding");
   };
   if (!deployment) {
     return (
@@ -924,6 +913,7 @@ function InstallationProfiles({
                 setMethod(
                   String(nextProfile?.orchestrator ?? "DOCKER_COMPOSE"),
                 );
+                setDnsMode(String(nextProfile?.dnsMode ?? "MANUAL"));
               }}
             >
               {data.deployments.map((item) => (
@@ -993,6 +983,23 @@ function InstallationProfiles({
                   : "Cole a chave privada SSH"
               }
             />
+            {profile?.sshCredentialRef && (
+              <p className="mt-1 text-success text-xs">
+                Chave SSH armazenada com segurança.
+              </p>
+            )}
+          </Field>
+          <Field label="Senha da chave SSH (opcional)">
+            <Input
+              name="sshPassphraseSecret"
+              type="password"
+              autoComplete="new-password"
+              placeholder={
+                profile?.sshPassphraseRef
+                  ? "Senha já salva. Deixe vazio para manter."
+                  : "Preencha somente se a chave tiver senha"
+              }
+            />
           </Field>
         </ProfileSection>
         <ProfileSection title="Orquestrador">
@@ -1031,6 +1038,16 @@ function InstallationProfiles({
           )}
         </ProfileSection>
         <ProfileSection title="DNS, domínios e TLS">
+          <Field label="Configuração do DNS">
+            <Select
+              name="dnsMode"
+              value={dnsMode}
+              onChange={(event) => setDnsMode(event.target.value)}
+            >
+              <option value="MANUAL">Manual, pelo painel do domínio</option>
+              <option value="AUTOMATIC">Automática, usando token</option>
+            </Select>
+          </Field>
           <Field label="Provedor DNS">
             <Input name="dnsProvider" defaultValue={value("dnsProvider")} />
           </Field>
@@ -1041,17 +1058,20 @@ function InstallationProfiles({
               placeholder="cliente.com.br"
             />
           </Field>
-          <Field label="Token DNS (opcional)">
-            <Input
-              name="dnsSecret"
-              type="password"
-              placeholder={
-                profile?.dnsCredentialRef
-                  ? "Token já salvo. Deixe vazio para manter."
-                  : "Somente para configuração automática"
-              }
-            />
-          </Field>
+          {dnsMode === "AUTOMATIC" && (
+            <Field label="Token do provedor DNS">
+              <Input
+                name="dnsSecret"
+                type="password"
+                autoComplete="new-password"
+                placeholder={
+                  profile?.dnsCredentialRef
+                    ? "Token já salvo. Deixe vazio para manter."
+                    : "Cole o token com permissão para editar DNS"
+                }
+              />
+            </Field>
+          )}
           <Field label="Domínio Agents">
             <Input name="agentsDomain" defaultValue={value("agentsDomain")} />
           </Field>
@@ -1243,6 +1263,7 @@ function Onboarding({
   data: Workspace;
   reload(): Promise<void>;
 }) {
+  const navigate = useNavigate();
   const complete = async (id: string) => {
     await api.api.v1.crm.checklist({ id }).patch({ status: "DONE" });
     await reload();
@@ -1362,6 +1383,13 @@ function Onboarding({
           title="Nenhuma implantação"
           description="Cadastre uma instalação para iniciar o onboarding."
         />
+      )}
+      {data.deployments.length > 0 && (
+        <div className="flex justify-end">
+          <Button onClick={() => navigate("/crm/agents")}>
+            Continuar para configurar o agente
+          </Button>
+        </div>
       )}
     </div>
   );

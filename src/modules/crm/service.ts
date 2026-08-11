@@ -92,6 +92,13 @@ export async function getCrmWorkspace(
         orderBy: { updatedAt: "desc" },
         include: {
           customer: { select: { id: true, name: true, plan: true } },
+          contract: {
+            select: {
+              id: true,
+              status: true,
+              planVersion: { select: { displayName: true, version: true } },
+            },
+          },
           _count: {
             select: {
               remoteAgents: true,
@@ -260,17 +267,18 @@ export async function createCrmDeployment(
   input: Record<string, unknown>,
   base: PrismaClient = basePrisma,
 ) {
-  const customerId = BigInt(String(input.customerId ?? "0"));
+  const contractId = BigInt(String(input.contractId ?? "0"));
   const name = String(input.name ?? "").trim();
-  if (!name || customerId <= 0n)
-    throw new AppError("customerId and name are required", 400);
-  const customerExists = await runScopedOn(base, ctx, (db) =>
-    db.crmCustomer.findUnique({
-      where: { id: customerId },
-      select: { id: true },
+  if (!name || contractId <= 0n)
+    throw new AppError("contractId and name are required", 400);
+  const contract = await runScopedOn(base, ctx, (db) =>
+    db.crmContract.findUnique({
+      where: { id: contractId },
+      select: { customerId: true },
     }),
   );
-  if (!customerExists) throw new NotFoundError("customer not found");
+  if (!contract) throw new NotFoundError("contract not found");
+  const customerId = contract.customerId;
   const generated = !input.heartbeatSecretRef;
   const deploymentKey = String(input.deploymentKey ?? randomUUID());
   const heartbeatSecret = generated ? randomBytes(32).toString("hex") : null;
@@ -294,10 +302,12 @@ export async function createCrmDeployment(
       data: {
         tenantId: tenantId(ctx),
         customerId,
+        contractId,
         name,
         deploymentKey,
         instanceId: input.instanceId ? String(input.instanceId) : null,
         heartbeatSecretRef,
+        environment: String(input.environment ?? "PRODUCTION"),
         status: String(input.status ?? "PLANNED"),
         orchestrator: input.orchestrator ? String(input.orchestrator) : null,
         vpsProvider: input.vpsProvider ? String(input.vpsProvider) : null,

@@ -6,6 +6,8 @@ const complete = {
   desiredDeliveryAt: new Date(),
   provider: "Hostinger",
   serverHost: "203.0.113.10",
+  serverUser: "root",
+  sshCredentialRef: "vault:5",
   operatingSystem: "Ubuntu 24.04",
   region: "br",
   cpuCores: 4,
@@ -49,6 +51,8 @@ describe("CRM installation readiness", () => {
       orchestrator: "DOCKER_COMPOSE",
       orchestratorUrl: null,
       orchestratorCredentialRef: null,
+      serverUser: null,
+      sshCredentialRef: null,
     });
     expect(result.ready).toBe(false);
     expect(result.missing).toContain("usuário SSH");
@@ -66,5 +70,22 @@ describe("CRM installation readiness", () => {
     });
     expect(result.ready).toBe(true);
     expect(result.percent).toBe(100);
+  });
+
+  test("automatic DNS requires its token, manual DNS does not", () => {
+    const automatic = installationReadiness({
+      ...complete,
+      dnsMode: "AUTOMATIC",
+      dnsCredentialRef: null,
+    });
+    expect(automatic.ready).toBe(false);
+    expect(automatic.missing).toContain("token DNS");
+
+    const manual = installationReadiness({
+      ...complete,
+      dnsMode: "MANUAL",
+      dnsCredentialRef: null,
+    });
+    expect(manual.ready).toBe(true);
   });
 });

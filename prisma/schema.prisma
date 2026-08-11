@@ -246,6 +246,7 @@ model CrmContract {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   planVersion CrmPlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
+  deployments CrmDeployment[]
   @@index([tenantId, customerId])
   @@map("crm_contracts")
 }
@@ -254,6 +255,7 @@ model CrmDeployment {
   id BigInt @id @default(autoincrement())
   tenantId BigInt @map("tenant_id")
   customerId BigInt @map("customer_id")
+  contractId BigInt? @map("contract_id")
   name String
   instanceId String? @map("instance_id")
   deploymentKey String? @map("deployment_key")
@@ -279,6 +281,7 @@ model CrmDeployment {
   updatedAt DateTime @updatedAt @map("updated_at")
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contract CrmContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
   remoteAgents CrmRemoteAgent[]
   remoteServices CrmRemoteService[]
   checklistItems CrmChecklistItem[]
@@ -290,6 +293,7 @@ model CrmDeployment {
   installationProfile CrmInstallationProfile?
   @@index([tenantId])
   @@index([tenantId, customerId])
+  @@index([tenantId, contractId])
   @@unique([tenantId, instanceId])
   @@unique([tenantId, deploymentKey])
   @@map("crm_deployments")
@@ -306,6 +310,7 @@ model CrmInstallationProfile {
   serverPort Int @default(22) @map("server_port")
   serverUser String? @map("server_user")
   sshCredentialRef String? @map("ssh_credential_ref")
+  sshPassphraseRef String? @map("ssh_passphrase_ref")
   operatingSystem String? @map("operating_system")
   region String?
   cpuCores Int? @map("cpu_cores")
@@ -315,6 +320,7 @@ model CrmInstallationProfile {
   orchestratorUrl String? @map("orchestrator_url")
   orchestratorCredentialRef String? @map("orchestrator_credential_ref")
   dnsProvider String? @map("dns_provider")
+  dnsMode String @default("MANUAL") @map("dns_mode")
   dnsZone String? @map("dns_zone")
   dnsCredentialRef String? @map("dns_credential_ref")
   agentsDomain String? @map("agents_domain")

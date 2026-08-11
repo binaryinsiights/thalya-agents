@@ -43,6 +43,7 @@ const PROFILE_FIELDS = [
   "serverPort",
   "serverUser",
   "sshCredentialRef",
+  "sshPassphraseRef",
   "operatingSystem",
   "region",
   "cpuCores",
@@ -52,6 +53,7 @@ const PROFILE_FIELDS = [
   "orchestratorUrl",
   "orchestratorCredentialRef",
   "dnsProvider",
+  "dnsMode",
   "dnsZone",
   "dnsCredentialRef",
   "agentsDomain",
@@ -82,11 +84,13 @@ export function installationReadiness(profile: Record<string, unknown> | null) {
     ["domínio Langfuse", profile.langfuseDomain],
     ["e-mail TLS", profile.acmeEmail],
     ["autorização", profile.authorized],
+    ["usuário SSH", profile.serverUser],
+    ["credencial SSH", profile.sshCredentialRef],
+    ...(String(profile.dnsMode ?? "MANUAL").toUpperCase() === "AUTOMATIC"
+      ? [["token DNS", profile.dnsCredentialRef]]
+      : []),
     ...(orchestrator === "DOCKER_COMPOSE"
-      ? [
-          ["usuário SSH", profile.serverUser],
-          ["credencial SSH", profile.sshCredentialRef],
-        ]
+      ? []
       : [
           ["URL do orquestrador", profile.orchestratorUrl],
           ["credencial do orquestrador", profile.orchestratorCredentialRef],
@@ -124,6 +128,7 @@ export function upsertInstallationProfile(
           if (!deployment) throw new NotFoundError("deployment not found");
           for (const key of [
             "sshCredentialRef",
+            "sshPassphraseRef",
             "orchestratorCredentialRef",
             "dnsCredentialRef",
             "backupCredentialRef",
@@ -193,6 +198,7 @@ async function prepareProfileCredentials(
   if (!deployment) throw new NotFoundError("deployment not found");
   const credentials = [
     ["sshSecret", "sshCredentialRef", "ssh"],
+    ["sshPassphraseSecret", "sshPassphraseRef", "ssh-passphrase"],
     ["dnsSecret", "dnsCredentialRef", "dns"],
     ["orchestratorSecret", "orchestratorCredentialRef", "orchestrator"],
   ] as const;
