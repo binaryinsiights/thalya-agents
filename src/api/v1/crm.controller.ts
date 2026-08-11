@@ -40,6 +40,21 @@ function ctxOrThrow(ctx: TenantContext | null) {
   if (ctx.tenantId === null) throw new TenantTargetRequiredError();
   return ctx;
 }
+
+function provisionRunResponse(
+  run: Awaited<ReturnType<typeof startProvisionRun>>,
+) {
+  return {
+    ...run,
+    id: String(run.id),
+    tenantId: String(run.tenantId),
+    deploymentId: String(run.deploymentId),
+    startedAt: run.startedAt?.toISOString() ?? null,
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+  };
+}
 const body = t.Record(t.String(), t.Unknown());
 
 export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
@@ -244,11 +259,13 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
   )
   .post(
     "/deployments/:id/connection-test",
-    ({ tenantContext, params }) =>
-      startProvisionRun(
-        ctxOrThrow(tenantContext),
-        BigInt(params.id),
-        "CONNECTION_TEST",
+    async ({ tenantContext, params }) =>
+      provisionRunResponse(
+        await startProvisionRun(
+          ctxOrThrow(tenantContext),
+          BigInt(params.id),
+          "CONNECTION_TEST",
+        ),
       ),
     {
       requireRole: "TENANT_ADMIN",
@@ -262,11 +279,13 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
   )
   .post(
     "/deployments/:id/provision",
-    ({ tenantContext, params }) =>
-      startProvisionRun(
-        ctxOrThrow(tenantContext),
-        BigInt(params.id),
-        "INSTALL",
+    async ({ tenantContext, params }) =>
+      provisionRunResponse(
+        await startProvisionRun(
+          ctxOrThrow(tenantContext),
+          BigInt(params.id),
+          "INSTALL",
+        ),
       ),
     {
       requireRole: "TENANT_ADMIN",
