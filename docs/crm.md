@@ -34,17 +34,17 @@ simultânea de toda a frota.
 
 ## Ficha técnica obrigatória
 
-Antes da implantação, preencha **CRM > Ficha técnica**. A ficha reúne prazo e
-responsável, provedor e capacidade da VPS, acesso SSH ou ao orquestrador, DNS,
-os quatro domínios, TLS, backup, registry e autorização formal. O indicador de
-prontidão só chega a 100% quando os campos exigidos para o método escolhido
-estão completos.
+Antes da implantação, preencha **CRM > Ficha técnica** nesta ordem: acesso à
+VPS, método, domínios e autorização. A ficha pode ser salva como rascunho em
+qualquer momento. O indicador de prontidão mostra os dados que ainda faltam.
 
-Credenciais nunca são digitadas ou persistidas na ficha. Crie-as primeiro em
-**Recursos > Cofre** e informe somente a referência `vault:<id>`. O backend
-confirma que cada referência existe e está ativa antes de salvar. Para Coolify
-e Portainer são exigidos URL e token do orquestrador; para Docker Compose são
-exigidos usuário e credencial SSH.
+O operador informa chaves e tokens diretamente na ficha. O backend os envia ao
+Cofre criptografado e persiste somente a referência interna; o valor nunca
+volta para a tela. Não é necessário abrir o Cofre nem manipular referências
+`vault:<id>`. Para Coolify e Portainer são exigidos URL e token do
+orquestrador; para Docker Compose são exigidos usuário e chave SSH. Token DNS é
+opcional para automação; DNS manual não exige token. Registry e backup pertencem
+às etapas de distribuição e operação e não bloqueiam a preparação inicial.
 
 ## Emissor na VPS do cliente
 

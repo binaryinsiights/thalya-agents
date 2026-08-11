@@ -54,4 +54,17 @@ describe("CRM installation readiness", () => {
     expect(result.missing).toContain("usuário SSH");
     expect(result.missing).toContain("credencial SSH");
   });
+
+  test("registry, backup and automatic DNS credentials do not block preparation", () => {
+    const result = installationReadiness({
+      ...complete,
+      registryCredentialRef: null,
+      backupProvider: null,
+      backupDestination: null,
+      backupCredentialRef: null,
+      dnsCredentialRef: null,
+    });
+    expect(result.ready).toBe(true);
+    expect(result.percent).toBe(100);
+  });
 });

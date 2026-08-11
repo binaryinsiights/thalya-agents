@@ -72,28 +72,15 @@ export function installationReadiness(profile: Record<string, unknown> | null) {
   if (!profile) return { ready: false, percent: 0, missing: ["ficha técnica"] };
   const orchestrator = String(profile.orchestrator ?? "").toUpperCase();
   const required = [
-    ["responsável técnico", profile.technicalOwner],
-    ["data de entrega", profile.desiredDeliveryAt],
-    ["provedor da VPS", profile.provider],
     ["host da VPS", profile.serverHost],
-    ["sistema operacional", profile.operatingSystem],
-    ["região", profile.region],
-    ["CPU", profile.cpuCores],
-    ["memória", profile.memoryMb],
-    ["disco", profile.diskGb],
     ["orquestrador", profile.orchestrator],
     ["provedor DNS", profile.dnsProvider],
     ["zona DNS", profile.dnsZone],
-    ["credencial DNS", profile.dnsCredentialRef],
     ["domínio Agents", profile.agentsDomain],
     ["domínio Chatwoot", profile.chatwootDomain],
     ["domínio Baileys", profile.baileysDomain],
     ["domínio Langfuse", profile.langfuseDomain],
     ["e-mail TLS", profile.acmeEmail],
-    ["provedor de backup", profile.backupProvider],
-    ["destino de backup", profile.backupDestination],
-    ["credencial de backup", profile.backupCredentialRef],
-    ["credencial do registry", profile.registryCredentialRef],
     ["autorização", profile.authorized],
     ...(orchestrator === "DOCKER_COMPOSE"
       ? [
@@ -123,63 +110,109 @@ export function upsertInstallationProfile(
   input: Record<string, unknown>,
   base = basePrisma,
 ) {
-  return mutate(
-    ctx,
-    "crm.installation_profile.updated",
-    `deployment:${deploymentId}`,
-    async (db) => {
-      const deployment = await db.crmDeployment.findUnique({
-        where: { id: deploymentId },
-        select: { id: true },
-      });
-      if (!deployment) throw new NotFoundError("deployment not found");
-      for (const key of [
-        "sshCredentialRef",
-        "orchestratorCredentialRef",
-        "dnsCredentialRef",
-        "backupCredentialRef",
-        "registryCredentialRef",
-      ] as const) {
-        const ref = text(input[key]);
-        if (ref && !(await tryResolveVaultSecret(db, ref))) {
-          throw new AppError(
-            `vault reference for ${key} is invalid or pending`,
-            400,
-          );
-        }
-      }
-      const data: Record<string, unknown> = {};
-      for (const key of PROFILE_FIELDS) {
-        if (input[key] === undefined) continue;
-        if (key === "desiredDeliveryAt") data[key] = date(input[key]);
-        else if (["serverPort", "cpuCores", "memoryMb", "diskGb"].includes(key))
-          data[key] = input[key] ? Number(input[key]) : null;
-        else if (key === "authorized") {
-          data.authorized =
-            input.authorized === true ||
-            input.authorized === "true" ||
-            input.authorized === "on";
-          data.authorizedAt = data.authorized ? new Date() : null;
-        } else data[key] = text(input[key]);
-      }
-      const row = await db.crmInstallationProfile.upsert({
-        where: { deploymentId },
-        create: {
-          ...data,
-          tenantId: tenant(ctx),
-          deploymentId,
-        } as Prisma.CrmInstallationProfileUncheckedCreateInput,
-        update: data,
-      });
-      return {
-        ...row,
-        readiness: installationReadiness(
-          row as unknown as Record<string, unknown>,
-        ),
-      };
-    },
-    base,
+  return prepareProfileCredentials(ctx, deploymentId, input, base).then(
+    (preparedInput) =>
+      mutate(
+        ctx,
+        "crm.installation_profile.updated",
+        `deployment:${deploymentId}`,
+        async (db) => {
+          const deployment = await db.crmDeployment.findUnique({
+            where: { id: deploymentId },
+            select: { id: true },
+          });
+          if (!deployment) throw new NotFoundError("deployment not found");
+          for (const key of [
+            "sshCredentialRef",
+            "orchestratorCredentialRef",
+            "dnsCredentialRef",
+            "backupCredentialRef",
+            "registryCredentialRef",
+          ] as const) {
+            const ref = text(preparedInput[key]);
+            if (ref && !(await tryResolveVaultSecret(db, ref))) {
+              throw new AppError(
+                `vault reference for ${key} is invalid or pending`,
+                400,
+              );
+            }
+          }
+          const data: Record<string, unknown> = {};
+          for (const key of PROFILE_FIELDS) {
+            if (preparedInput[key] === undefined) continue;
+            if (key === "desiredDeliveryAt")
+              data[key] = date(preparedInput[key]);
+            else if (
+              ["serverPort", "cpuCores", "memoryMb", "diskGb"].includes(key)
+            )
+              data[key] = preparedInput[key]
+                ? Number(preparedInput[key])
+                : null;
+            else if (key === "authorized") {
+              data.authorized =
+                preparedInput.authorized === true ||
+                preparedInput.authorized === "true" ||
+                preparedInput.authorized === "on";
+              data.authorizedAt = data.authorized ? new Date() : null;
+            } else data[key] = text(preparedInput[key]);
+          }
+          const row = await db.crmInstallationProfile.upsert({
+            where: { deploymentId },
+            create: {
+              ...data,
+              tenantId: tenant(ctx),
+              deploymentId,
+            } as Prisma.CrmInstallationProfileUncheckedCreateInput,
+            update: data,
+          });
+          return {
+            ...row,
+            readiness: installationReadiness(
+              row as unknown as Record<string, unknown>,
+            ),
+          };
+        },
+        base,
+      ),
   );
+}
+
+async function prepareProfileCredentials(
+  ctx: TenantContext,
+  deploymentId: bigint,
+  input: Record<string, unknown>,
+  base: PrismaClient,
+) {
+  const prepared = { ...input };
+  const deployment = await runScopedOn(base, ctx, (db) =>
+    db.crmDeployment.findUnique({
+      where: { id: deploymentId },
+      select: { id: true },
+    }),
+  );
+  if (!deployment) throw new NotFoundError("deployment not found");
+  const credentials = [
+    ["sshSecret", "sshCredentialRef", "ssh"],
+    ["dnsSecret", "dnsCredentialRef", "dns"],
+    ["orchestratorSecret", "orchestratorCredentialRef", "orchestrator"],
+  ] as const;
+  for (const [secretField, refField, label] of credentials) {
+    const secret = text(input[secretField]);
+    if (!secret) continue;
+    const entry = await createVaultEntry(
+      ctx,
+      {
+        name: `crm-${deploymentId}-${label}-${Date.now()}`,
+        value: secret,
+        kind: "generic",
+      },
+      undefined,
+      undefined,
+      base,
+    );
+    prepared[refField] = entry.ref;
+  }
+  return prepared;
 }
 
 export async function rotateFleetCredential(

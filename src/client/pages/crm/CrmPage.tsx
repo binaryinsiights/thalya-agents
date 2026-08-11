@@ -860,6 +860,16 @@ function InstallationProfiles({
   const profile = data.installationProfiles.find(
     (item) => String(item.deploymentId) === deploymentId,
   );
+  const [method, setMethod] = useState(
+    String(profile?.orchestrator ?? "DOCKER_COMPOSE"),
+  );
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  useEffect(() => {
+    setMethod(String(profile?.orchestrator ?? "DOCKER_COMPOSE"));
+    setSaveState("idle");
+  }, [profile?.orchestrator]);
   const deployment = data.deployments.find((item) => item.id === deploymentId);
   const value = (key: string) =>
     String(
@@ -867,14 +877,20 @@ function InstallationProfiles({
     );
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSaveState("saving");
     const values: Record<string, unknown> = Object.fromEntries(
       new FormData(event.currentTarget),
     );
     values.authorized = values.authorized === "on";
-    await api.api.v1.crm
+    const response = await api.api.v1.crm
       .deployments({ id: deploymentId })
       ["installation-profile"].put(values);
+    if (response.error) {
+      setSaveState("error");
+      return;
+    }
     await reload();
+    setSaveState("saved");
   };
   if (!deployment) {
     return (
@@ -888,11 +904,26 @@ function InstallationProfiles({
   return (
     <div className="space-y-4">
       <Card className="p-5">
+        <div className="mb-5 rounded-lg bg-bg-tertiary p-4 text-sm text-text-secondary">
+          <strong className="text-text-primary">Preencha nesta ordem:</strong>{" "}
+          acesso à VPS, domínios e autorização. Salve quando quiser. Chaves e
+          tokens informados aqui são enviados ao Cofre criptografado
+          automaticamente e nunca voltam para a tela.
+        </div>
         <div className="grid items-end gap-4 md:grid-cols-[1fr_auto]">
           <Field label="Instalação">
             <Select
               value={deploymentId}
-              onChange={(event) => setDeploymentId(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                const nextProfile = data.installationProfiles.find(
+                  (item) => String(item.deploymentId) === nextId,
+                );
+                setDeploymentId(nextId);
+                setMethod(
+                  String(nextProfile?.orchestrator ?? "DOCKER_COMPOSE"),
+                );
+              }}
             >
               {data.deployments.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -921,12 +952,11 @@ function InstallationProfiles({
         )}
       </Card>
       <form key={deploymentId} onSubmit={submit} className="space-y-4">
-        <ProfileSection title="Responsáveis e prazo">
+        <ProfileSection title="Identificação">
           <Field label="Responsável técnico Binary Insights">
             <Input
               name="technicalOwner"
               defaultValue={value("technicalOwner")}
-              required
             />
           </Field>
           <Field label="Entrega desejada">
@@ -934,74 +964,32 @@ function InstallationProfiles({
               name="desiredDeliveryAt"
               type="date"
               defaultValue={value("desiredDeliveryAt").slice(0, 10)}
-              required
             />
           </Field>
         </ProfileSection>
-        <ProfileSection title="VPS e capacidade">
-          <Field label="Provedor da VPS">
-            <Input name="provider" defaultValue={value("provider")} required />
-          </Field>
+        <ProfileSection title="Acesso à VPS">
           <Field label="IP ou hostname">
-            <Input
-              name="serverHost"
-              defaultValue={value("serverHost")}
-              required
-            />
+            <Input name="serverHost" defaultValue={value("serverHost")} />
           </Field>
           <Field label="Porta SSH">
             <Input
               name="serverPort"
               type="number"
               defaultValue={value("serverPort") || "22"}
-              required
             />
           </Field>
           <Field label="Usuário SSH">
             <Input name="serverUser" defaultValue={value("serverUser")} />
           </Field>
-          <Field label="Credencial SSH no Vault">
+          <Field label="Chave privada SSH">
             <Input
-              name="sshCredentialRef"
-              defaultValue={value("sshCredentialRef")}
-              placeholder="vault:123"
-            />
-          </Field>
-          <Field label="Sistema operacional">
-            <Input
-              name="operatingSystem"
-              defaultValue={value("operatingSystem") || "Ubuntu 24.04"}
-              required
-            />
-          </Field>
-          <Field label="Região">
-            <Input name="region" defaultValue={value("region")} required />
-          </Field>
-          <Field label="CPU (núcleos)">
-            <Input
-              name="cpuCores"
-              type="number"
-              min="2"
-              defaultValue={value("cpuCores")}
-              required
-            />
-          </Field>
-          <Field label="Memória (MB)">
-            <Input
-              name="memoryMb"
-              type="number"
-              min="4096"
-              defaultValue={value("memoryMb")}
-              required
-            />
-          </Field>
-          <Field label="Disco (GB)">
-            <Input
-              name="diskGb"
-              type="number"
-              min="40"
-              defaultValue={value("diskGb")}
-              required
+              name="sshSecret"
+              type="password"
+              placeholder={
+                profile?.sshCredentialRef
+                  ? "Chave já salva. Deixe vazio para manter."
+                  : "Cole a chave privada SSH"
+              }
             />
           </Field>
         </ProfileSection>
@@ -1009,86 +997,75 @@ function InstallationProfiles({
           <Field label="Método">
             <Select
               name="orchestrator"
-              defaultValue={value("orchestrator") || "COOLIFY"}
+              value={method}
+              onChange={(event) => setMethod(event.target.value)}
             >
               <option value="COOLIFY">Coolify</option>
               <option value="PORTAINER">Portainer</option>
               <option value="DOCKER_COMPOSE">Docker Compose via SSH</option>
             </Select>
           </Field>
-          <Field label="URL do orquestrador">
-            <Input
-              name="orchestratorUrl"
-              type="url"
-              defaultValue={value("orchestratorUrl")}
-            />
-          </Field>
-          <Field label="Token do orquestrador no Vault">
-            <Input
-              name="orchestratorCredentialRef"
-              defaultValue={value("orchestratorCredentialRef")}
-              placeholder="vault:124"
-            />
-          </Field>
-          <Field label="Credencial do registry no Vault">
-            <Input
-              name="registryCredentialRef"
-              defaultValue={value("registryCredentialRef")}
-              placeholder="vault:125"
-              required
-            />
-          </Field>
+          {method !== "DOCKER_COMPOSE" && (
+            <>
+              <Field label="URL do orquestrador">
+                <Input
+                  name="orchestratorUrl"
+                  type="url"
+                  defaultValue={value("orchestratorUrl")}
+                />
+              </Field>
+              <Field label="Token do orquestrador">
+                <Input
+                  name="orchestratorSecret"
+                  type="password"
+                  placeholder={
+                    profile?.orchestratorCredentialRef
+                      ? "Token já salvo. Deixe vazio para manter."
+                      : "Cole o token"
+                  }
+                />
+              </Field>
+            </>
+          )}
         </ProfileSection>
         <ProfileSection title="DNS, domínios e TLS">
           <Field label="Provedor DNS">
-            <Input
-              name="dnsProvider"
-              defaultValue={value("dnsProvider")}
-              required
-            />
+            <Input name="dnsProvider" defaultValue={value("dnsProvider")} />
           </Field>
           <Field label="Zona DNS">
             <Input
               name="dnsZone"
               defaultValue={value("dnsZone")}
               placeholder="cliente.com.br"
-              required
             />
           </Field>
-          <Field label="Token DNS no Vault">
+          <Field label="Token DNS (opcional)">
             <Input
-              name="dnsCredentialRef"
-              defaultValue={value("dnsCredentialRef")}
-              placeholder="vault:126"
-              required
+              name="dnsSecret"
+              type="password"
+              placeholder={
+                profile?.dnsCredentialRef
+                  ? "Token já salvo. Deixe vazio para manter."
+                  : "Somente para configuração automática"
+              }
             />
           </Field>
           <Field label="Domínio Agents">
-            <Input
-              name="agentsDomain"
-              defaultValue={value("agentsDomain")}
-              required
-            />
+            <Input name="agentsDomain" defaultValue={value("agentsDomain")} />
           </Field>
           <Field label="Domínio Chatwoot">
             <Input
               name="chatwootDomain"
               defaultValue={value("chatwootDomain")}
-              required
             />
           </Field>
           <Field label="Domínio Baileys">
-            <Input
-              name="baileysDomain"
-              defaultValue={value("baileysDomain")}
-              required
-            />
+            <Input name="baileysDomain" defaultValue={value("baileysDomain")} />
           </Field>
           <Field label="Domínio Langfuse">
             <Input
               name="langfuseDomain"
               defaultValue={value("langfuseDomain")}
-              required
             />
           </Field>
           <Field label="E-mail para TLS">
@@ -1096,34 +1073,10 @@ function InstallationProfiles({
               name="acmeEmail"
               type="email"
               defaultValue={value("acmeEmail")}
-              required
             />
           </Field>
         </ProfileSection>
-        <ProfileSection title="Backup e autorização">
-          <Field label="Provedor do backup">
-            <Input
-              name="backupProvider"
-              defaultValue={value("backupProvider")}
-              placeholder="Cloudflare R2"
-              required
-            />
-          </Field>
-          <Field label="Bucket ou destino">
-            <Input
-              name="backupDestination"
-              defaultValue={value("backupDestination")}
-              required
-            />
-          </Field>
-          <Field label="Credencial do backup no Vault">
-            <Input
-              name="backupCredentialRef"
-              defaultValue={value("backupCredentialRef")}
-              placeholder="vault:127"
-              required
-            />
-          </Field>
+        <ProfileSection title="Autorização">
           <Field label="Autorizado por">
             <Input name="authorizedBy" defaultValue={value("authorizedBy")} />
           </Field>
@@ -1139,7 +1092,19 @@ function InstallationProfiles({
             Autorizo o início da implantação nesta infraestrutura
           </label>
         </ProfileSection>
-        <Button type="submit">Salvar e validar ficha</Button>
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={saveState === "saving"}>
+            {saveState === "saving" ? "Salvando..." : "Salvar ficha"}
+          </Button>
+          {saveState === "saved" && (
+            <span className="text-sm text-success">Ficha salva.</span>
+          )}
+          {saveState === "error" && (
+            <span className="text-error text-sm">
+              Não foi possível salvar. Confira os campos preenchidos.
+            </span>
+          )}
+        </div>
       </form>
     </div>
   );
