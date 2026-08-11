@@ -28,6 +28,7 @@ import { ChannelsPage } from "@/client/pages/ChannelsPage";
 import { ConversationDetailPage } from "@/client/pages/ConversationDetailPage";
 import { ConversationsPage } from "@/client/pages/ConversationsPage";
 import { DashboardPage } from "@/client/pages/DashboardPage";
+import { CrmPage } from "@/client/pages/crm/CrmPage";
 import { LoginPage } from "@/client/pages/LoginPage";
 // NOTE: SettingsAboutPage removed (item 13); /settings/about now redirects to profile.
 import { LogsPage } from "@/client/pages/LogsPage";
@@ -197,6 +198,14 @@ export function App() {
                               <Route
                                 path="/oauth/consent"
                                 element={<OAuthConsentPage />}
+                              />
+                              <Route
+                                path="/crm/:section?"
+                                element={
+                                  <ProtectedRoute requireAdmin>
+                                    <CrmPage />
+                                  </ProtectedRoute>
+                                }
                               />
                               <Route
                                 path="/admin"

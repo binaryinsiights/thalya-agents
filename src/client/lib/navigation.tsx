@@ -1,5 +1,6 @@
 import {
   Bot,
+  BriefcaseBusiness,
   Gauge,
   Globe,
   KeyRound,
@@ -46,6 +47,7 @@ export interface NavItem {
 // t('nav.logs', 'Logs')
 // t('nav.admin', 'Admin')
 // t('nav.settings', 'Settings')
+// t('nav.crm', 'CRM')
 export const NAV_ITEMS: NavItem[] = [
   {
     to: "/",
@@ -101,6 +103,13 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: "nav.logs",
     defaultLabel: "Logs",
     icon: ScrollText,
+    requireAdmin: true,
+  },
+  {
+    to: "/crm",
+    labelKey: "nav.crm",
+    defaultLabel: "CRM",
+    icon: BriefcaseBusiness,
     requireAdmin: true,
   },
   {

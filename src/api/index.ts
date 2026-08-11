@@ -14,6 +14,7 @@ import { auditController } from "@/api/v1/audit.controller";
 import { businessHoursController } from "@/api/v1/business-hours.controller";
 import { chatwootController } from "@/api/v1/chatwoot.controller";
 import { chatwootAdminController } from "@/api/v1/chatwoot-admin.controller";
+import { crmController } from "@/api/v1/crm.controller";
 import { experimentsController } from "@/api/v1/experiments.controller";
 import { integrationsController } from "@/api/v1/integrations.controller";
 import { integrationsAdminController } from "@/api/v1/integrations-admin.controller";
@@ -207,6 +208,10 @@ const api = new Elysia()
           },
           { name: "Admin", description: "User & tenant administration." },
           {
+            name: "CRM",
+            description: "Binary Insights customer and fleet operations.",
+          },
+          {
             name: "Settings",
             description: "Tenant settings, branding & Google OAuth.",
           },
@@ -249,6 +254,7 @@ const api = new Elysia()
   .use(mcpMeController)
   .use(mcpAdminController)
   .use(chatwootController)
-  .use(chatwootAdminController);
+  .use(chatwootAdminController)
+  .use(crmController);
 
 export default api;

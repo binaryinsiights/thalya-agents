@@ -147,8 +147,148 @@ model Tenant {
   mcpOAuthAccessTokens          McpOAuthAccessToken[]
   mcpOAuthRefreshTokens         McpOAuthRefreshToken[]
   mcpOAuthPendingAuthorizations McpOAuthPendingAuthorization[]
+  crmCustomers                  CrmCustomer[]
+  crmDeployments                CrmDeployment[]
+  crmRemoteAgents               CrmRemoteAgent[]
+  crmChecklistItems             CrmChecklistItem[]
+  crmAlerts                     CrmAlert[]
 
   @@map("tenants")
+}
+
+// ───────────────────────────────────────── Binary Insights CRM ──
+model CrmCustomer {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  name String
+  legalName String? @map("legal_name")
+  document String?
+  niche String?
+  contactName String? @map("contact_name")
+  contactEmail String? @map("contact_email")
+  contactPhone String? @map("contact_phone")
+  plan String
+  planVersion String @default("1") @map("plan_version")
+  commercialStatus String @default("LEAD") @map("commercial_status")
+  implementationStatus String @default("PENDING") @map("implementation_status")
+  financialStatus String @default("PENDING") @map("financial_status")
+  supportStatus String @default("NORMAL") @map("support_status")
+  contractStart DateTime? @map("contract_start")
+  contractEnd DateTime? @map("contract_end")
+  notes String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deployments CrmDeployment[]
+  @@index([tenantId])
+  @@index([tenantId, commercialStatus])
+  @@map("crm_customers")
+}
+
+model CrmDeployment {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  customerId BigInt @map("customer_id")
+  name String
+  instanceId String? @map("instance_id")
+  environment String @default("PRODUCTION")
+  orchestrator String?
+  region String?
+  vpsProvider String? @map("vps_provider")
+  domain String?
+  agentsUrl String? @map("agents_url")
+  chatwootUrl String? @map("chatwoot_url")
+  langfuseUrl String? @map("langfuse_url")
+  baileysUrl String? @map("baileys_url")
+  agentsVersion String? @map("agents_version")
+  chatwootVersion String? @map("chatwoot_version")
+  langfuseVersion String? @map("langfuse_version")
+  baileysVersion String? @map("baileys_version")
+  status String @default("PLANNED")
+  health String @default("UNKNOWN")
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  metadata Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  remoteAgents CrmRemoteAgent[]
+  checklistItems CrmChecklistItem[]
+  alerts CrmAlert[]
+  @@index([tenantId])
+  @@index([tenantId, customerId])
+  @@map("crm_deployments")
+}
+
+model CrmRemoteAgent {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  deploymentId BigInt @map("deployment_id")
+  remoteAgentId String? @map("remote_agent_id")
+  name String
+  function String?
+  mode String @default("TEST")
+  status String @default("INACTIVE")
+  plan String
+  template String?
+  channels Json @default("[]")
+  knowledgeBases Json @default("[]") @map("knowledge_bases")
+  integrations Json @default("[]")
+  usage Json @default("{}")
+  deepLink String? @map("deep_link")
+  lastChangedAt DateTime? @map("last_changed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deployment CrmDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([tenantId, deploymentId])
+  @@map("crm_remote_agents")
+}
+
+model CrmChecklistItem {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  deploymentId BigInt @map("deployment_id")
+  phase String
+  title String
+  description String?
+  status String @default("PENDING")
+  responsible String?
+  evidenceUrl String? @map("evidence_url")
+  blocker String?
+  approvedBy String? @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  position Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deployment CrmDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([tenantId, deploymentId, position])
+  @@map("crm_checklist_items")
+}
+
+model CrmAlert {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  deploymentId BigInt? @map("deployment_id")
+  type String
+  severity String @default("WARNING")
+  title String
+  description String?
+  status String @default("OPEN")
+  source String?
+  openedAt DateTime @default(now()) @map("opened_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deployment CrmDeployment? @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("crm_alerts")
 }
 
 // NOTE: Global app identity/branding — a SINGLE row (id always 1). GLOBAL table, NOT under
