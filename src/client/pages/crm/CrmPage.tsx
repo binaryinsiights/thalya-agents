@@ -1009,10 +1009,12 @@ function InstallationProfiles({
               value={method}
               onChange={(event) => setMethod(event.target.value)}
             >
-              <option value="COOLIFY">Coolify</option>
-              <option value="PORTAINER">Portainer</option>
               <option value="DOCKER_COMPOSE">Docker Compose via SSH</option>
             </Select>
+            <p className="mt-1 text-text-secondary text-xs">
+              A Binary instala diretamente na VPS; nenhum painel adicional é
+              necessário.
+            </p>
           </Field>
           {method !== "DOCKER_COMPOSE" && (
             <>
@@ -1088,6 +1090,25 @@ function InstallationProfiles({
             <Input
               name="langfuseDomain"
               defaultValue={value("langfuseDomain")}
+            />
+          </Field>
+          <Field label="E-mail administrador Langfuse">
+            <Input
+              name="langfuseAdminEmail"
+              type="email"
+              defaultValue={value("langfuseAdminEmail")}
+            />
+          </Field>
+          <Field label="Senha inicial do Langfuse">
+            <Input
+              name="langfuseAdminPasswordSecret"
+              type="password"
+              autoComplete="new-password"
+              placeholder={
+                profile?.langfuseAdminPasswordRef
+                  ? "Senha já salva. Deixe vazio para manter."
+                  : "Defina a senha inicial do administrador"
+              }
             />
           </Field>
           <Field label="E-mail para TLS">
@@ -1264,6 +1285,24 @@ function Onboarding({
   reload(): Promise<void>;
 }) {
   const navigate = useNavigate();
+  const activeRun = data.provisionRuns.find((run) =>
+    ["QUEUED", "RUNNING"].includes(run.status),
+  );
+  useEffect(() => {
+    if (!activeRun) return;
+    const timer = window.setInterval(() => void reload(), 3000);
+    return () => window.clearInterval(timer);
+  }, [activeRun, reload]);
+  const startConnectionTest = async (id: string) => {
+    const response = await api.api.v1.crm
+      .deployments({ id })
+      ["connection-test"].post();
+    if (!response.error) await reload();
+  };
+  const startInstallation = async (id: string) => {
+    const response = await api.api.v1.crm.deployments({ id }).provision.post();
+    if (!response.error) await reload();
+  };
   const complete = async (id: string) => {
     await api.api.v1.crm.checklist({ id }).patch({ status: "DONE" });
     await reload();
@@ -1285,6 +1324,13 @@ function Onboarding({
         const approvals = data.approvals.filter(
           (x) => String(x.deploymentId) === deployment.id,
         );
+        const profile = data.installationProfiles.find(
+          (item) => String(item.deploymentId) === deployment.id,
+        );
+        const run = data.provisionRuns.find(
+          (item) => String(item.deploymentId) === deployment.id,
+        );
+        const running = run && ["QUEUED", "RUNNING"].includes(run.status);
         return (
           <Card key={deployment.id}>
             <div className="mb-4 flex items-center justify-between">
@@ -1306,6 +1352,61 @@ function Onboarding({
                 </Button>
               )}
             </div>
+            <div className="mb-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+              <div>
+                <p className="font-medium text-text-primary">
+                  Provisionamento da VPS
+                </p>
+                <p className="text-sm text-text-secondary">
+                  {run?.summary ??
+                    (profile?.readiness.ready
+                      ? "Dados completos. A VPS está pronta para conexão."
+                      : `Dados pendentes: ${profile?.readiness.missing.join(", ") ?? "infraestrutura"}`)}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!profile?.readiness.ready || Boolean(running)}
+                onClick={() => void startConnectionTest(deployment.id)}
+              >
+                Testar acesso
+              </Button>
+              <Button
+                size="sm"
+                disabled={!profile?.readiness.ready || Boolean(running)}
+                onClick={() => void startInstallation(deployment.id)}
+              >
+                Instalar stack
+              </Button>
+            </div>
+            {run && (
+              <div className="mb-5 rounded-lg bg-bg-tertiary p-4">
+                <div className="flex items-center justify-between text-sm">
+                  <strong className="text-text-primary">{run.phase}</strong>
+                  <Badge variant={badgeVariant(run.status)}>{run.status}</Badge>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-secondary">
+                  <div
+                    className="h-full bg-accent"
+                    style={{ width: `${run.progress}%` }}
+                  />
+                </div>
+                {run.error && (
+                  <p className="mt-3 text-error text-sm">{run.error}</p>
+                )}
+                <div className="mt-3 max-h-48 space-y-1 overflow-y-auto text-text-secondary text-xs">
+                  {(run.logs as Array<{ at: string; message: string }>).map(
+                    (entry) => (
+                      <p key={`${entry.at}-${entry.message}`}>
+                        {new Date(entry.at).toLocaleTimeString("pt-BR")} ·{" "}
+                        {entry.message}
+                      </p>
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               {items.map((x) => (
                 <div

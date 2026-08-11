@@ -15,7 +15,7 @@ import {
   useSidebar,
 } from "@/client/contexts/SidebarContext";
 import { useUpdates } from "@/client/contexts/UpdatesContext";
-import { APP_VERSION, IS_FREE } from "@/client/lib/env";
+import { APP_VERSION, BINARY_CRM_ENABLED, IS_FREE } from "@/client/lib/env";
 import {
   AGENTS_REPO_URL,
   type FooterLink,
@@ -454,7 +454,7 @@ export function Sidebar() {
   const { user } = useAuth();
   const { collapsed, width, mobileOpen, setMobileOpen } = useSidebar();
   const { count: approvalsCount } = usePendingApprovals();
-  const items = filterNavItems(NAV_ITEMS, user?.role);
+  const items = filterNavItems(NAV_ITEMS, user?.role, BINARY_CRM_ENABLED);
   const effectiveWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : width;
 
   return (

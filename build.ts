@@ -162,6 +162,9 @@ const result = await Bun.build({
     "process.env.BUN_PUBLIC_EDITION": JSON.stringify(
       process.env.BUN_PUBLIC_EDITION || "free",
     ),
+    "process.env.BUN_PUBLIC_BINARY_CRM": JSON.stringify(
+      process.env.BUN_PUBLIC_BINARY_CRM || "false",
+    ),
   },
   ...cliConfig,
 });

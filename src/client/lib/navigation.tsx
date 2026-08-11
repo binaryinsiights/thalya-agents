@@ -130,8 +130,13 @@ export const NAV_ITEMS: NavItem[] = [
 export function filterNavItems(
   items: NavItem[],
   role: string | undefined,
+  crmEnabled = true,
 ): NavItem[] {
-  return items.filter((item) => !item.requireAdmin || isAdminRole(role));
+  return items.filter(
+    (item) =>
+      (crmEnabled || item.to !== "/crm") &&
+      (!item.requireAdmin || isAdminRole(role)),
+  );
 }
 
 export interface FooterLink {

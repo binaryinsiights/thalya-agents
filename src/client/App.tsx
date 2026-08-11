@@ -16,6 +16,7 @@ import { NavGuardProvider } from "@/client/contexts/NavGuardContext";
 import { SidebarProvider } from "@/client/contexts/SidebarContext";
 import { ThemeProvider } from "@/client/contexts/ThemeContext";
 import { UpdatesProvider } from "@/client/contexts/UpdatesContext";
+import { BINARY_CRM_ENABLED } from "@/client/lib/env";
 import { AcceptInvitePage } from "@/client/pages/AcceptInvitePage";
 import { AgentsPage } from "@/client/pages/AgentsPage";
 import { ApiKeysPage } from "@/client/pages/ApiKeysPage";
@@ -202,9 +203,13 @@ export function App() {
                               <Route
                                 path="/crm/:section?"
                                 element={
-                                  <ProtectedRoute requireAdmin>
-                                    <CrmPage />
-                                  </ProtectedRoute>
+                                  BINARY_CRM_ENABLED ? (
+                                    <ProtectedRoute requireAdmin>
+                                      <CrmPage />
+                                    </ProtectedRoute>
+                                  ) : (
+                                    <Navigate to="/" replace />
+                                  )
                                 }
                               />
                               <Route

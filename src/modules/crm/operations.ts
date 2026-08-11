@@ -60,6 +60,8 @@ const PROFILE_FIELDS = [
   "chatwootDomain",
   "baileysDomain",
   "langfuseDomain",
+  "langfuseAdminEmail",
+  "langfuseAdminPasswordRef",
   "acmeEmail",
   "backupProvider",
   "backupDestination",
@@ -82,6 +84,8 @@ export function installationReadiness(profile: Record<string, unknown> | null) {
     ["domínio Chatwoot", profile.chatwootDomain],
     ["domínio Baileys", profile.baileysDomain],
     ["domínio Langfuse", profile.langfuseDomain],
+    ["e-mail administrador Langfuse", profile.langfuseAdminEmail],
+    ["senha administrador Langfuse", profile.langfuseAdminPasswordRef],
     ["e-mail TLS", profile.acmeEmail],
     ["autorização", profile.authorized],
     ["usuário SSH", profile.serverUser],
@@ -133,6 +137,7 @@ export function upsertInstallationProfile(
             "dnsCredentialRef",
             "backupCredentialRef",
             "registryCredentialRef",
+            "langfuseAdminPasswordRef",
           ] as const) {
             const ref = text(preparedInput[key]);
             if (ref && !(await tryResolveVaultSecret(db, ref))) {
@@ -201,6 +206,11 @@ async function prepareProfileCredentials(
     ["sshPassphraseSecret", "sshPassphraseRef", "ssh-passphrase"],
     ["dnsSecret", "dnsCredentialRef", "dns"],
     ["orchestratorSecret", "orchestratorCredentialRef", "orchestrator"],
+    [
+      "langfuseAdminPasswordSecret",
+      "langfuseAdminPasswordRef",
+      "langfuse-admin",
+    ],
   ] as const;
   for (const [secretField, refField, label] of credentials) {
     const secret = text(input[secretField]);

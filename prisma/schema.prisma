@@ -161,6 +161,7 @@ model Tenant {
   crmUsageSnapshots             CrmUsageSnapshot[]
   crmMaintenanceRecords         CrmMaintenanceRecord[]
   crmInstallationProfiles       CrmInstallationProfile[]
+  crmProvisionRuns              CrmProvisionRun[]
 
   @@map("tenants")
 }
@@ -291,6 +292,7 @@ model CrmDeployment {
   maintenanceRecords CrmMaintenanceRecord[]
   alerts CrmAlert[]
   installationProfile CrmInstallationProfile?
+  provisionRuns CrmProvisionRun[]
   @@index([tenantId])
   @@index([tenantId, customerId])
   @@index([tenantId, contractId])
@@ -327,6 +329,8 @@ model CrmInstallationProfile {
   chatwootDomain String? @map("chatwoot_domain")
   baileysDomain String? @map("baileys_domain")
   langfuseDomain String? @map("langfuse_domain")
+  langfuseAdminEmail String? @map("langfuse_admin_email")
+  langfuseAdminPasswordRef String? @map("langfuse_admin_password_ref")
   acmeEmail String? @map("acme_email")
   backupProvider String? @map("backup_provider")
   backupDestination String? @map("backup_destination")
@@ -342,6 +346,28 @@ model CrmInstallationProfile {
   deployment CrmDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   @@index([tenantId])
   @@map("crm_installation_profiles")
+}
+
+model CrmProvisionRun {
+  id BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  deploymentId BigInt @map("deployment_id")
+  kind String
+  status String @default("QUEUED")
+  phase String @default("QUEUED")
+  progress Int @default(0)
+  summary String?
+  error String?
+  logs Json @default("[]")
+  startedAt DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deployment CrmDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([tenantId, deploymentId, createdAt])
+  @@map("crm_provision_runs")
 }
 
 model CrmRemoteService {

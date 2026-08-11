@@ -38,6 +38,7 @@ const {
   RATE_LIMIT_USER_PER_MIN,
   RATE_LIMIT_MCP_PER_MIN,
   BUN_PUBLIC_EDITION,
+  BINARY_CRM_ENABLED,
   FAZER_AI_HUB_URL,
   AGENTS_UPDATE_CHECK_URL,
   HUB_UPDATES_TTL_MS,
@@ -89,6 +90,8 @@ const config = {
   // Dockerfile), so the client gate and the server never disagree. Defaults to "full"; the Free
   // build sets "free". Consumed via `IS_FREE` (src/lib/edition.ts) and the client bundle.
   edition: (BUN_PUBLIC_EDITION === "free" ? "free" : "full") as "free" | "full",
+  // Control-plane only. Customer instances report to the fleet endpoint but do not expose CRM.
+  crmEnabled: BINARY_CRM_ENABLED === "true",
   logLevel: (LOG_LEVEL || "info") as LevelWithSilentOrString,
   // NOTE: Escape hatch for local dev where the runtime connects as the Postgres superuser.
   // Boot fails fast if the runtime role is superuser/bypassrls (RLS would be a no-op) UNLESS

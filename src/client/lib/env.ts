@@ -30,3 +30,10 @@ try {
 
 export const EDITION = edition;
 export const IS_FREE = edition === "free";
+
+let binaryCrmEnabled = false;
+try {
+  binaryCrmEnabled = process.env.BUN_PUBLIC_BINARY_CRM === "true";
+} catch {}
+
+export const BINARY_CRM_ENABLED = binaryCrmEnabled;

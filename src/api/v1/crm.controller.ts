@@ -1,7 +1,12 @@
 import { Elysia, t } from "elysia";
 import { doc, errors } from "@/api/lib/openapi";
 import { tenancyPlugin } from "@/api/middlewares/tenancy";
-import { ForbiddenError, TenantTargetRequiredError } from "@/lib/errors";
+import config from "@/config";
+import {
+  ForbiddenError,
+  NotFoundError,
+  TenantTargetRequiredError,
+} from "@/lib/errors";
 import type { TenantContext } from "@/lib/tenancy";
 import {
   createContact,
@@ -20,6 +25,7 @@ import {
   updateMaintenance,
   upsertInstallationProfile,
 } from "@/modules/crm/operations";
+import { startProvisionRun } from "@/modules/crm/provisioner";
 import {
   createChecklistItem,
   createCrmAgent,
@@ -37,6 +43,9 @@ function ctxOrThrow(ctx: TenantContext | null) {
 const body = t.Record(t.String(), t.Unknown());
 
 export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
+  .onBeforeHandle(() => {
+    if (!config.crmEnabled) throw new NotFoundError("CRM is not enabled");
+  })
   .use(tenancyPlugin)
   .get("/", ({ tenantContext }) => getCrmWorkspace(ctxOrThrow(tenantContext)), {
     requireRole: "TENANT_ADMIN",
@@ -231,6 +240,42 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
         "Salva a ficha completa de pré-implantação e calcula a prontidão.",
       ),
       response: errors(400, 401, 403, 404),
+    },
+  )
+  .post(
+    "/deployments/:id/connection-test",
+    ({ tenantContext, params }) =>
+      startProvisionRun(
+        ctxOrThrow(tenantContext),
+        BigInt(params.id),
+        "CONNECTION_TEST",
+      ),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Test deployment connection",
+        "Valida SSH, Docker e capacidade básica da VPS cadastrada.",
+      ),
+      response: errors(400, 401, 403, 404, 409),
+    },
+  )
+  .post(
+    "/deployments/:id/provision",
+    ({ tenantContext, params }) =>
+      startProvisionRun(
+        ctxOrThrow(tenantContext),
+        BigInt(params.id),
+        "INSTALL",
+      ),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Provision client stack",
+        "Instala a stack Binary Insights na VPS cadastrada e acompanha o progresso.",
+      ),
+      response: errors(400, 401, 403, 404, 409),
     },
   )
   .post(

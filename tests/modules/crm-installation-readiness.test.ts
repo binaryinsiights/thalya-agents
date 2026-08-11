@@ -23,6 +23,8 @@ const complete = {
   chatwootDomain: "chat.example.com",
   baileysDomain: "wa.example.com",
   langfuseDomain: "logs.example.com",
+  langfuseAdminEmail: "admin@example.com",
+  langfuseAdminPasswordRef: "vault:6",
   acmeEmail: "admin@example.com",
   backupProvider: "R2",
   backupDestination: "bucket",

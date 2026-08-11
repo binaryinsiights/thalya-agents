@@ -83,6 +83,7 @@ export async function getCrmWorkspace(
       audit,
       localAgents,
       installationProfiles,
+      provisionRuns,
     ] = await Promise.all([
       db.crmCustomer.findMany({
         orderBy: { updatedAt: "desc" },
@@ -185,6 +186,10 @@ export async function getCrmWorkspace(
         },
       }),
       db.crmInstallationProfile.findMany({ orderBy: { updatedAt: "desc" } }),
+      db.crmProvisionRun.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
     ]);
     return {
       plans: CRM_PLANS,
@@ -219,6 +224,7 @@ export async function getCrmWorkspace(
           ),
         }),
       ),
+      provisionRuns: provisionRuns.map(json),
       checklist: checklist.map(json),
       alerts: alerts.map(json),
       planVersions: planVersions.map(json),
