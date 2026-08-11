@@ -1331,6 +1331,11 @@ function Onboarding({
           (item) => String(item.deploymentId) === deployment.id,
         );
         const running = run && ["QUEUED", "RUNNING"].includes(run.status);
+        const sshReady = Boolean(
+          profile?.serverHost &&
+            profile?.serverUser &&
+            profile?.sshCredentialRef,
+        );
         return (
           <Card key={deployment.id}>
             <div className="mb-4 flex items-center justify-between">
@@ -1367,7 +1372,7 @@ function Onboarding({
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={!profile?.readiness.ready || Boolean(running)}
+                disabled={!sshReady || Boolean(running)}
                 onClick={() => void startConnectionTest(deployment.id)}
               >
                 Testar acesso
