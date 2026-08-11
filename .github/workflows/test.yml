@@ -2,9 +2,9 @@ name: Run Tests on PR
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
