@@ -38,6 +38,7 @@ services:
       - 'host.docker.internal:host-gateway'
     environment:
       - CADDY_DOMAIN=${CADDY_DOMAIN}
+      - CADDY_HTTP_ONLY=${CADDY_HTTP_ONLY:-false}
       - ACME_EMAIL=${ACME_EMAIL:-}
       - PORTAINER_DOMAIN=${PORTAINER_DOMAIN:-}
       - PORTAINER_UPSTREAM=${PORTAINER_UPSTREAM:-https://host.docker.internal:9443}
@@ -53,13 +54,15 @@ services:
       - |
         cf=/etc/caddy/Caddyfile
         : > "$$cf"
+        scheme=""
+        if [ "$${CADDY_HTTP_ONLY}" = "true" ]; then scheme="http://"; fi
         if [ -n "$${ACME_EMAIL}" ]; then
           printf '{\n\temail %s\n}\n' "$${ACME_EMAIL}" >> "$$cf"
         fi
-        printf '%s {\n\treverse_proxy agents:3000\n}\n' "$${CADDY_DOMAIN}" >> "$$cf"
-        printf '%s {\n\treverse_proxy host.docker.internal:3001\n}\n' "$${CHATWOOT_DOMAIN}" >> "$$cf"
-        printf '%s {\n\treverse_proxy host.docker.internal:3002\n}\n' "$${LANGFUSE_DOMAIN}" >> "$$cf"
-        printf '%s {\n\treverse_proxy host.docker.internal:3025\n}\n' "$${BAILEYS_DOMAIN}" >> "$$cf"
+        printf '%s%s {\n\treverse_proxy agents:3000\n}\n' "$$scheme" "$${CADDY_DOMAIN}" >> "$$cf"
+        printf '%s%s {\n\treverse_proxy host.docker.internal:3001\n}\n' "$$scheme" "$${CHATWOOT_DOMAIN}" >> "$$cf"
+        printf '%s%s {\n\treverse_proxy host.docker.internal:3002\n}\n' "$$scheme" "$${LANGFUSE_DOMAIN}" >> "$$cf"
+        printf '%s%s {\n\treverse_proxy host.docker.internal:3025\n}\n' "$$scheme" "$${BAILEYS_DOMAIN}" >> "$$cf"
         if [ -n "$${PORTAINER_DOMAIN}" ]; then
           printf '%s {\n\treverse_proxy %s {\n\t\ttransport http {\n\t\t\ttls_insecure_skip_verify\n\t\t}\n\t}\n}\n' "$${PORTAINER_DOMAIN}" "$${PORTAINER_UPSTREAM}" >> "$$cf"
         fi

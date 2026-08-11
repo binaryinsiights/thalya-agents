@@ -542,7 +542,8 @@ async function installStack(
       .then(() => true)
       .catch(() => false);
     if (port80Busy) {
-      agentsEnv += "CADDY_HTTP_PORT=8080\nCADDY_HTTPS_PORT=8443\n";
+      agentsEnv +=
+        "CADDY_HTTP_PORT=8080\nCADDY_HTTPS_PORT=8443\nCADDY_HTTP_ONLY=true\n";
       await log(
         ctx,
         runId,
