@@ -3,7 +3,6 @@ import {
   Activity,
   Bot,
   Building2,
-  CheckCircle2,
   CircleDollarSign,
   ExternalLink,
   FileText,
@@ -73,11 +72,15 @@ function isInstalledDeployment(
   deployment: Deployment,
   runs: Workspace["provisionRuns"],
 ) {
-  const run = runs.find((item) => String(item.deploymentId) === deployment.id);
+  const hasSuccessfulRun = runs.some(
+    (item) =>
+      String(item.deploymentId) === deployment.id &&
+      item.status === "SUCCEEDED",
+  );
   return (
     deployment.status === "ACTIVE" ||
     deployment.health === "HEALTHY" ||
-    run?.status === "SUCCEEDED"
+    hasSuccessfulRun
   );
 }
 
@@ -334,7 +337,7 @@ function DeploymentFlowNav({
   const steps = [
     ["deployments", "1. Cliente e instalação"],
     ["installation-profile", "2. Acessos e hospedagem"],
-    ["onboarding", "3. Serviços e checklist"],
+    ["onboarding", "3. Instalação e serviços"],
     ["agents", "4. Configurar agente"],
   ] as const;
   return (
@@ -651,6 +654,7 @@ function Pipeline({
                   <Select
                     className="mt-3"
                     value={x.commercialStatus}
+                    disabled={x.commercialStatus === "ACTIVE"}
                     onChange={(event) => void move(x.id, event.target.value)}
                   >
                     {columns.map((column) => (
@@ -1443,14 +1447,6 @@ function Onboarding({
     const response = await api.api.v1.crm.deployments({ id }).provision.post();
     if (!response.error) await reload();
   };
-  const complete = async (id: string) => {
-    await api.api.v1.crm.checklist({ id }).patch({ status: "DONE" });
-    await reload();
-  };
-  const initialize = async (id: string) => {
-    await api.api.v1.crm.deployments({ id }).onboarding.post();
-    await reload();
-  };
   return (
     <div className="space-y-4">
       {data.deployments
@@ -1459,9 +1455,6 @@ function Onboarding({
             !isInstalledDeployment(deployment, data.provisionRuns),
         )
         .map((deployment) => {
-          const items = data.checklist.filter(
-            (x) => String(x.deploymentId) === deployment.id,
-          );
           const profile = data.installationProfiles.find(
             (item) => String(item.deploymentId) === deployment.id,
           );
@@ -1485,18 +1478,6 @@ function Onboarding({
                     {deployment.name}
                   </p>
                 </div>
-                <Badge>
-                  {items.filter((x) => x.status === "DONE").length}/
-                  {items.length}
-                </Badge>
-                {items.length === 0 && (
-                  <Button
-                    size="sm"
-                    onClick={() => void initialize(deployment.id)}
-                  >
-                    Criar checklist oficial
-                  </Button>
-                )}
               </div>
               <div className="mb-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
                 <div>
@@ -1555,33 +1536,6 @@ function Onboarding({
                   </div>
                 </div>
               )}
-              <div className="space-y-2">
-                {items.map((x) => (
-                  <div
-                    key={x.id}
-                    className="flex items-center justify-between rounded-lg border border-border p-3"
-                  >
-                    <div>
-                      <p className="font-medium text-text-primary">{x.title}</p>
-                      <p className="text-sm text-text-secondary">
-                        {x.phase}
-                        {x.responsible ? ` · ${x.responsible}` : ""}
-                      </p>
-                    </div>
-                    {x.status === "DONE" ? (
-                      <CheckCircle2 className="h-5 w-5 text-success" />
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void complete(x.id)}
-                      >
-                        Concluir
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
             </Card>
           );
         })}
