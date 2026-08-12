@@ -103,7 +103,9 @@ export function AdminTenantsPage() {
                       <span className="flex items-center gap-2">
                         {tenant.name}
                         {tenant.source === "CRM_CLIENT" && (
-                          <Badge variant="success">Cliente implantado</Badge>
+                          <Badge variant="success">
+                            {t("admin.crmClient", "Cliente implantado")}
+                          </Badge>
                         )}
                         {tenant.demoMode && (
                           <Badge variant="secondary">
@@ -128,7 +130,7 @@ export function AdminTenantsPage() {
                             to="/crm/customers"
                             className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 font-medium text-text-secondary text-xs transition-colors hover:bg-bg-hover hover:text-text-primary"
                           >
-                            Ver no CRM
+                            {t("admin.viewCrm", "Ver no CRM")}
                           </Link>
                         ) : (
                           <Link
