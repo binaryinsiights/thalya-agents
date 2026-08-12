@@ -324,7 +324,7 @@ export async function listVaultNames(db: ScopedDb): Promise<string[]> {
     select: { name: true },
     orderBy: { name: "asc" },
   });
-  return rows.map((r) => r.name);
+  return rows.filter((r) => !isCrmSshCredential(r.name)).map((r) => r.name);
 }
 
 export interface VaultEntryInfo {
@@ -336,6 +336,13 @@ export interface VaultEntryInfo {
   paramName: string | null;
   // "active" = a real secret is stored; "pending" = only the reference exists (not filled yet).
   status: string;
+}
+
+// CRM infrastructure credentials are managed exclusively from the customer's
+// installation profile. They remain encrypted in the Vault, but must not appear
+// in the generic Vault catalogue alongside application credentials.
+function isCrmSshCredential(name: string) {
+  return /^crm-\d+-ssh(?:-passphrase)?-/.test(name);
 }
 
 export async function listVaultInfos(db: ScopedDb): Promise<VaultEntryInfo[]> {
@@ -350,14 +357,16 @@ export async function listVaultInfos(db: ScopedDb): Promise<VaultEntryInfo[]> {
     },
     orderBy: { name: "asc" },
   });
-  return rows.map((r) => ({
-    id: String(r.id),
-    name: r.name,
-    kind: r.kind,
-    baseUrl: r.baseUrl,
-    paramName: r.paramName,
-    status: r.status,
-  }));
+  return rows
+    .filter((r) => !isCrmSshCredential(r.name))
+    .map((r) => ({
+      id: String(r.id),
+      name: r.name,
+      kind: r.kind,
+      baseUrl: r.baseUrl,
+      paramName: r.paramName,
+      status: r.status,
+    }));
 }
 
 // ── ctx-based wrappers for the REST surface (the secret value is write-only: never returned) ──
