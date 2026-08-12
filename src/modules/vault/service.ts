@@ -343,10 +343,12 @@ export interface VaultEntryInfo {
 // in the generic Vault catalogue alongside application credentials.
 function isCrmSshCredential(name: string) {
   return (
+    name.startsWith("crm-") ||
     /^crm-\d+-ssh(?:-passphrase)?-/.test(name) ||
     /^crm-\d+-langfuse-admin-/.test(name) ||
     /^fleet-heartbeat-/.test(name) ||
-    name === "SSH - Piloto WSL"
+    name.startsWith("SSH - Piloto WSL") ||
+    name.startsWith("DNS - Piloto WSL")
   );
 }
 
