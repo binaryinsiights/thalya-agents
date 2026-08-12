@@ -479,6 +479,7 @@ async function installStack(
     `FLEET_DEPLOYMENT_KEY=${target.deployment.deploymentKey}`,
     `FLEET_HEARTBEAT_SECRET=${target.heartbeatSecret}`,
     "BINARY_CRM_ENABLED=false",
+    "THALYA_SEED_AGENT=true",
   ].join("\n")}\n`;
   const chatwootEnv = `${[
     `CHATWOOT_URL=https://${p.chatwootDomain}`,

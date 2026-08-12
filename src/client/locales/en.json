@@ -19,6 +19,7 @@
     "cannotDemoteSelf": "Cannot demote yourself",
     "createdAt": "Created",
     "createTenant": "Create tenant",
+    "crmClient": "Cliente implantado",
     "deleteUser": "Delete user",
     "deleteUserConfirm": "Type {{email}} to confirm",
     "deleteUserDone": "User deleted.",
@@ -47,6 +48,7 @@
     "title": "Admin Panel",
     "totalUsers": "Total Users",
     "users": "Users",
+    "viewCrm": "Ver no CRM",
     "viewUsers": "View users"
   },
   "advanced": {

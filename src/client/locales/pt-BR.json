@@ -19,6 +19,7 @@
     "cannotDemoteSelf": "Não é possível rebaixar a si mesmo",
     "createdAt": "Criado em",
     "createTenant": "Criar tenant",
+    "crmClient": "Cliente implantado",
     "deleteUser": "Excluir usuário",
     "deleteUserConfirm": "Digite {{email}} para confirmar",
     "deleteUserDone": "Usuário excluído.",
@@ -47,6 +48,7 @@
     "title": "Painel Administrativo",
     "totalUsers": "Total de Usuários",
     "users": "Usuários",
+    "viewCrm": "Ver no CRM",
     "viewUsers": "Ver usuários"
   },
   "advanced": {
