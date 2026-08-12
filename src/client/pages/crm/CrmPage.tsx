@@ -265,7 +265,10 @@ export function CrmPage() {
       </nav>
       {["deployments", "installation-profile", "onboarding", "agents"].includes(
         section,
-      ) && <DeploymentFlowNav active={section} navigate={navigate} />}
+      ) &&
+        pendingDeployments.length > 0 && (
+          <DeploymentFlowNav active={section} navigate={navigate} />
+        )}
       <DataBoundary loading={loading} error={error} onRetry={load}>
         {data && (
           <>
@@ -981,12 +984,15 @@ function InstallationProfiles({
 }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const availableDeployments = data.deployments.filter(
+    (item) => !isInstalledDeployment(item, data.provisionRuns),
+  );
   const requestedDeployment = searchParams.get("deployment");
   const [deploymentId, setDeploymentId] = useState(() =>
     requestedDeployment &&
-    data.deployments.some((item) => item.id === requestedDeployment)
+    availableDeployments.some((item) => item.id === requestedDeployment)
       ? requestedDeployment
-      : (data.deployments[0]?.id ?? ""),
+      : (availableDeployments[0]?.id ?? ""),
   );
   const profile = data.installationProfiles.find(
     (item) => String(item.deploymentId) === deploymentId,
@@ -1003,7 +1009,9 @@ function InstallationProfiles({
     setDnsMode(String(profile?.dnsMode ?? "MANUAL"));
     setSaveState("idle");
   }, [profile?.orchestrator, profile?.dnsMode]);
-  const deployment = data.deployments.find((item) => item.id === deploymentId);
+  const deployment = availableDeployments.find(
+    (item) => item.id === deploymentId,
+  );
   const value = (key: string) =>
     String(
       (profile as unknown as Record<string, unknown> | undefined)?.[key] ?? "",
@@ -1060,7 +1068,7 @@ function InstallationProfiles({
                 setDnsMode(String(nextProfile?.dnsMode ?? "MANUAL"));
               }}
             >
-              {data.deployments.map((item) => (
+              {availableDeployments.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.customer.name} · {item.name}
                 </option>
