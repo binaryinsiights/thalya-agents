@@ -102,6 +102,9 @@ export function AdminTenantsPage() {
                     <td className="px-2 py-3 text-text-primary">
                       <span className="flex items-center gap-2">
                         {tenant.name}
+                        {tenant.source === "CRM_CLIENT" && (
+                          <Badge variant="success">Cliente implantado</Badge>
+                        )}
                         {tenant.demoMode && (
                           <Badge variant="secondary">
                             {t("tenant.demo", "Demo")}
@@ -120,13 +123,22 @@ export function AdminTenantsPage() {
                     </td>
                     <td className="px-2 py-3">
                       <div className="flex items-center gap-1">
-                        <Link
-                          to={`/admin/users?tenant=${tenant.id}`}
-                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 font-medium text-text-secondary text-xs transition-colors hover:bg-bg-hover hover:text-text-primary"
-                        >
-                          <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                          {t("admin.viewUsers", "View users")}
-                        </Link>
+                        {tenant.source === "CRM_CLIENT" ? (
+                          <Link
+                            to="/crm/customers"
+                            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 font-medium text-text-secondary text-xs transition-colors hover:bg-bg-hover hover:text-text-primary"
+                          >
+                            Ver no CRM
+                          </Link>
+                        ) : (
+                          <Link
+                            to={`/admin/users?tenant=${tenant.id}`}
+                            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 font-medium text-text-secondary text-xs transition-colors hover:bg-bg-hover hover:text-text-primary"
+                          >
+                            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                            {t("admin.viewUsers", "View users")}
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>
