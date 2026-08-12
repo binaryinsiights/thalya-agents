@@ -1,5 +1,6 @@
 import {
   Bot,
+  BriefcaseBusiness,
   Gauge,
   Globe,
   KeyRound,
@@ -46,6 +47,7 @@ export interface NavItem {
 // t('nav.logs', 'Logs')
 // t('nav.admin', 'Admin')
 // t('nav.settings', 'Settings')
+// t('nav.crm', 'CRM')
 export const NAV_ITEMS: NavItem[] = [
   {
     to: "/",
@@ -104,6 +106,13 @@ export const NAV_ITEMS: NavItem[] = [
     requireAdmin: true,
   },
   {
+    to: "/crm",
+    labelKey: "nav.crm",
+    defaultLabel: "CRM",
+    icon: BriefcaseBusiness,
+    requireAdmin: true,
+  },
+  {
     to: "/admin",
     labelKey: "nav.admin",
     defaultLabel: "Admin",
@@ -121,8 +130,13 @@ export const NAV_ITEMS: NavItem[] = [
 export function filterNavItems(
   items: NavItem[],
   role: string | undefined,
+  crmEnabled = true,
 ): NavItem[] {
-  return items.filter((item) => !item.requireAdmin || isAdminRole(role));
+  return items.filter(
+    (item) =>
+      (crmEnabled || item.to !== "/crm") &&
+      (!item.requireAdmin || isAdminRole(role)),
+  );
 }
 
 export interface FooterLink {

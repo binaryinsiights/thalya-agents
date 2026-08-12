@@ -23,6 +23,11 @@ ENV BUN_PUBLIC_CDN_URL=$BUN_PUBLIC_CDN_URL
 ARG BUN_PUBLIC_EDITION="free"
 ENV BUN_PUBLIC_EDITION=$BUN_PUBLIC_EDITION
 
+# Binary Insights' fleet CRM is compiled only into the central control-plane image.
+# Per-customer images keep the default false, even though they share this source tree.
+ARG BUN_PUBLIC_BINARY_CRM="false"
+ENV BUN_PUBLIC_BINARY_CRM=$BUN_PUBLIC_BINARY_CRM
+
 # Generate Prisma client. The dummy DATABASE_URL is scoped to this RUN only (NOT an ENV), so it is
 # never baked into the runtime image where a real DATABASE_URL must be provided.
 RUN DATABASE_URL="postgres://postgres:postgres@localhost:5432/dummy" bun prisma generate

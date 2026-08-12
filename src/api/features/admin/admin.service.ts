@@ -63,6 +63,8 @@ export interface TenantWithUserCount {
   demoMode: boolean;
   createdAt: Date;
   userCount: number;
+  source?: "TENANT" | "CRM_CLIENT";
+  crmCustomerId?: string;
 }
 
 // Full tenant list for the SUPER_ADMIN admin panel (Tenants tab), each with its user count.
@@ -71,7 +73,7 @@ export interface TenantWithUserCount {
 export async function listTenantsWithUserCounts(
   base: PrismaClient = prisma,
 ): Promise<TenantWithUserCount[]> {
-  const [tenants, counts] = await Promise.all([
+  const [tenants, counts, deployedCustomers] = await Promise.all([
     asSuperAdminOn(base, (db) =>
       db.tenant.findMany({
         select: {
@@ -85,18 +87,42 @@ export async function listTenantsWithUserCounts(
       }),
     ),
     base.user.groupBy({ by: ["tenantId"], _count: { _all: true } }),
+    asSuperAdminOn(base, (db) =>
+      db.crmCustomer.findMany({
+        where: {
+          commercialStatus: "ACTIVE",
+          deployments: {
+            some: { provisionRuns: { some: { status: "SUCCEEDED" } } },
+          },
+        },
+        select: { id: true, name: true, createdAt: true },
+        orderBy: { id: "asc" },
+      }),
+    ),
   ]);
   const countByTenant = new Map(
     counts.map((c) => [c.tenantId?.toString() ?? "", c._count._all]),
   );
-  return tenants.map((tn) => ({
+  const nativeTenants = tenants.map((tn) => ({
     id: tn.id.toString(),
     name: tn.name,
     slug: tn.slug,
     demoMode: tn.demoMode,
     createdAt: tn.createdAt,
     userCount: countByTenant.get(tn.id.toString()) ?? 0,
+    source: "TENANT" as const,
   }));
+  const crmClients = deployedCustomers.map((customer) => ({
+    id: `crm-${customer.id.toString()}`,
+    name: customer.name,
+    slug: `cliente-${customer.id.toString()}`,
+    demoMode: false,
+    createdAt: customer.createdAt,
+    userCount: 0,
+    source: "CRM_CLIENT" as const,
+    crmCustomerId: customer.id.toString(),
+  }));
+  return [...nativeTenants, ...crmClients];
 }
 
 export async function getAdminStats(tenantId: bigint | null) {

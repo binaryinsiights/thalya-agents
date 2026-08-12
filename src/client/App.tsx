@@ -16,6 +16,7 @@ import { NavGuardProvider } from "@/client/contexts/NavGuardContext";
 import { SidebarProvider } from "@/client/contexts/SidebarContext";
 import { ThemeProvider } from "@/client/contexts/ThemeContext";
 import { UpdatesProvider } from "@/client/contexts/UpdatesContext";
+import { BINARY_CRM_ENABLED } from "@/client/lib/env";
 import { AcceptInvitePage } from "@/client/pages/AcceptInvitePage";
 import { AgentsPage } from "@/client/pages/AgentsPage";
 import { ApiKeysPage } from "@/client/pages/ApiKeysPage";
@@ -27,6 +28,7 @@ import { AgentEditorPage } from "@/client/pages/agents/AgentEditorPage";
 import { ChannelsPage } from "@/client/pages/ChannelsPage";
 import { ConversationDetailPage } from "@/client/pages/ConversationDetailPage";
 import { ConversationsPage } from "@/client/pages/ConversationsPage";
+import { CrmPage } from "@/client/pages/crm/CrmPage";
 import { DashboardPage } from "@/client/pages/DashboardPage";
 import { LoginPage } from "@/client/pages/LoginPage";
 // NOTE: SettingsAboutPage removed (item 13); /settings/about now redirects to profile.
@@ -197,6 +199,18 @@ export function App() {
                               <Route
                                 path="/oauth/consent"
                                 element={<OAuthConsentPage />}
+                              />
+                              <Route
+                                path="/crm/:section?"
+                                element={
+                                  BINARY_CRM_ENABLED ? (
+                                    <ProtectedRoute requireAdmin>
+                                      <CrmPage />
+                                    </ProtectedRoute>
+                                  ) : (
+                                    <Navigate to="/" replace />
+                                  )
+                                }
                               />
                               <Route
                                 path="/admin"

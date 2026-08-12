@@ -14,6 +14,7 @@ import {
   runPlaygroundFileTurn,
   runPlaygroundTurn,
 } from "@/modules/playground/service";
+import { crmCustomerCreate, crmWorkspaceGet } from "./crm";
 import { hasScope, type VerifiedToken } from "./oauth/tokens";
 import {
   agentGet,
@@ -2629,6 +2630,49 @@ export function buildMcpServer(principal: VerifiedToken): McpServer {
       },
       async (args: { base_url: string; admin_token: string }, eff) =>
         writeContent(await instanceListAccounts(eff, args)),
+    );
+
+    registerTenantTool(
+      server,
+      principal,
+      "crm_workspace_get",
+      {
+        description:
+          "Read the tenant-scoped Binary Control workspace: customers, contracts, deployments, sanitized remote agents, health, usage, alerts, maintenance and audit.",
+        inputSchema: {},
+      },
+      async (_args, eff) => writeContent(await crmWorkspaceGet(eff)),
+    );
+
+    registerTenantTool(
+      server,
+      principal,
+      "crm_customer_create",
+      {
+        description:
+          "Create a managed CRM customer. Previews and applies NOTHING unless dry_run is false.",
+        inputSchema: {
+          name: z.string().min(1).max(200),
+          plan: z.enum([
+            "THALYA_ESSENCIAL",
+            "THALYA_PROFISSIONAL",
+            "THALYA_INTELIGENTE",
+          ]),
+          niche: z.string().max(200).optional(),
+          contact_name: z.string().max(200).optional(),
+          dry_run: z.boolean().optional(),
+        },
+      },
+      async (
+        args: {
+          name: string;
+          plan: string;
+          niche?: string;
+          contact_name?: string;
+          dry_run?: boolean;
+        },
+        eff,
+      ) => writeContent(await crmCustomerCreate(eff, args)),
     );
 
     // ── fleet: tenants across the whole instance (cross-tenant; SUPER_ADMIN only) ──
