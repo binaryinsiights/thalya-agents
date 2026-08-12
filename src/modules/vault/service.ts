@@ -342,7 +342,12 @@ export interface VaultEntryInfo {
 // installation profile. They remain encrypted in the Vault, but must not appear
 // in the generic Vault catalogue alongside application credentials.
 function isCrmSshCredential(name: string) {
-  return /^crm-\d+-ssh(?:-passphrase)?-/.test(name);
+  return (
+    /^crm-\d+-ssh(?:-passphrase)?-/.test(name) ||
+    /^crm-\d+-langfuse-admin-/.test(name) ||
+    /^fleet-heartbeat-/.test(name) ||
+    name === "SSH - Piloto WSL"
+  );
 }
 
 export async function listVaultInfos(db: ScopedDb): Promise<VaultEntryInfo[]> {
