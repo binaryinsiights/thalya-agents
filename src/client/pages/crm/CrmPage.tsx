@@ -84,6 +84,30 @@ function isInstalledDeployment(
   );
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  ESSENCIAL: "Thalya Essencial",
+  PROFISSIONAL: "Thalya Profissional",
+  INTELIGENTE: "Thalya Inteligente",
+};
+
+const LIMIT_LABELS: Record<string, string> = {
+  agents: "Agentes",
+  channels: "Canais",
+  monthlyConversations: "Conversas mensais",
+  knowledgeDocuments: "Documentos na base de conhecimento",
+  monthlyAudioMinutes: "Minutos de áudio mensais",
+  monthlyTechnicalHours: "Horas técnicas mensais",
+  customIntegrations: "Integrações personalizadas",
+};
+
+function planLabel(value: string) {
+  return PLAN_LABELS[value] ?? value.replaceAll("_", " ");
+}
+
+function limitLabel(value: string) {
+  return LIMIT_LABELS[value] ?? value.replaceAll(/([A-Z])/g, " $1");
+}
+
 function Metric({
   label,
   value,
@@ -573,9 +597,7 @@ function Customers({
               </Badge>
             </div>
             <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-text-secondary">
-                {x.plan.replaceAll("_", " ")}
-              </span>
+              <span className="text-text-secondary">{planLabel(x.plan)}</span>
               <span className="text-text-muted">
                 {x._count.deployments} instalação(ões)
               </span>
@@ -652,7 +674,7 @@ function Pipeline({
                 <Card key={x.id} className="p-4">
                   <p className="font-medium text-text-primary">{x.name}</p>
                   <p className="mt-1 text-sm text-text-secondary">
-                    {x.plan.replaceAll("_", " ")}
+                    {planLabel(x.plan)}
                   </p>
                   <Select
                     className="mt-3"
@@ -836,7 +858,7 @@ function Contracts({
               <div className="mt-4 space-y-2 text-sm text-text-secondary">
                 {Object.entries(definition.limits ?? {}).map(([key, value]) => (
                   <div key={key} className="flex justify-between">
-                    <span>{key}</span>
+                    <span>{limitLabel(key)}</span>
                     <strong className="text-text-primary">{value}</strong>
                   </div>
                 ))}
@@ -1419,7 +1441,7 @@ function Agents({
               <Badge variant={badgeVariant(x.status)}>{x.status}</Badge>
             </div>
             <div className="mt-4 flex justify-between text-sm text-text-secondary">
-              <span>{x.plan.replaceAll("_", " ")}</span>
+              <span>{planLabel(x.plan)}</span>
               <span>{x.mode}</span>
             </div>
           </Card>
