@@ -422,8 +422,7 @@ function Overview({ data }: { data: Workspace }) {
             ))}
             {pending.length === 0 && (
               <p className="text-sm text-text-secondary">
-                Nenhuma implantação pendente. Clientes instalados ficam em
-                Clientes.
+                Nenhuma implantação pendente.
               </p>
             )}
           </div>
