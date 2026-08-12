@@ -43,6 +43,7 @@ import { translate } from "@/api/lib/i18n";
 import logger from "@/api/lib/logger";
 import { doc, errors, jsonResponse } from "@/api/lib/openapi";
 import config from "@/config";
+import { seedThalyaAgent } from "@/modules/agents/thalya-seed";
 
 const baseAuthController = new Elysia({
   prefix: "/auth",
@@ -104,6 +105,13 @@ const baseAuthController = new Elysia({
       }
 
       completeSetup();
+      // Customer images opt in through the CRM provisioner. Seeding is best-effort so a missing
+      // provider credential cannot prevent the administrator from entering the console.
+      await seedThalyaAgent({
+        tenantId,
+        userId: user.id,
+        role: "TENANT_ADMIN",
+      });
       await setAuthCookie(user);
       // NOTE: Log non-PII identifiers only. `userId` is stable and audit-
       // useful, `role` confirms this was the bootstrap-ADMIN path. The email
