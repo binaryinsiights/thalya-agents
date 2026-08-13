@@ -98,26 +98,16 @@ function normalize(doc: OpenApiDoc): OpenApiDoc {
 
 async function generate(): Promise<string> {
   const { default: app } = await import("@/app");
-  return new Promise((resolve, reject) => {
-    app.listen(0, async (server) => {
-      try {
-        const res = await fetch(
-          `http://localhost:${server.port}${DOCS_JSON_PATH}`,
-        );
-        if (res.status !== 200) {
-          throw new Error(
-            `GET ${DOCS_JSON_PATH} returned ${res.status} (expected 200). The openapi plugin is dev-only; is NODE_ENV=production?`,
-          );
-        }
-        const doc = normalize((await res.json()) as OpenApiDoc);
-        resolve(`${JSON.stringify(doc, null, 2)}\n`);
-      } catch (error) {
-        reject(error);
-      } finally {
-        server.stop(true);
-      }
-    });
-  });
+  const res = await app.handle(
+    new Request(`http://localhost${DOCS_JSON_PATH}`),
+  );
+  if (res.status !== 200) {
+    throw new Error(
+      `GET ${DOCS_JSON_PATH} returned ${res.status} (expected 200). The openapi plugin is dev-only; is NODE_ENV=production?`,
+    );
+  }
+  const doc = normalize((await res.json()) as OpenApiDoc);
+  return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
 async function main() {
