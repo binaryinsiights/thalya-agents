@@ -39,7 +39,6 @@ const FEATURE_FIELDS = [
   ["omnichannel", "Omnichannel"],
   ["inboxRouting", "Roteamento por inbox"],
   ["hsmTemplates", "Templates HSM"],
-  ["kanban", "Kanban / funil"],
   ["reminders", "Lembretes automáticos"],
   ["specializedAgents", "Agentes especializados"],
   ["langfuse", "Observabilidade Langfuse"],
@@ -49,15 +48,13 @@ const FEATURE_FIELDS = [
   ["audit", "Auditoria"],
   ["backups", "Backups e restauração"],
   ["monitoring", "Monitoramento"],
-  ["multiVps", "Gestão de múltiplas VPS"],
-  ["whiteLabel", "Branding próprio"],
 ] as const;
 
 const FEATURE_GROUPS = [
   ["Agente e multimodalidade", ["text", "stt", "tts", "vision", "memory", "debounce", "typing", "playground", "humanHandoff"]],
   ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "nativeTools", "toolpacks", "mcp", "customIntegrations"]],
-  ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "kanban", "followUp", "reminders", "specializedAgents", "asaas"]],
-  ["Observabilidade e plataforma", ["langfuse", "executionLogs", "alerts", "outboundWebhooks", "audit", "backups", "monitoring", "loadTest", "multiVps", "whiteLabel"]],
+  ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "followUp", "reminders", "specializedAgents", "asaas"]],
+  ["Observabilidade e plataforma", ["langfuse", "executionLogs", "alerts", "outboundWebhooks", "audit", "backups", "monitoring", "loadTest"]],
 ] as const;
 
 

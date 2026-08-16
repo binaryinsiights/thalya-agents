@@ -48,7 +48,6 @@ export async function seedThalyaAgent(
     const allowDrive = enabled("BINARY_FEATURE_DRIVE");
     const allowAsaas = enabled("BINARY_FEATURE_ASAAS");
     const allowFollowUp = enabled("BINARY_FEATURE_FOLLOWUPS");
-    const allowKanban = planEnabled("kanban", true);
     const allowHandoff = planEnabled("humanHandoff", true);
     agent.tools = tools.filter((grant) => {
       if (!grant || typeof grant !== "object") return false;
@@ -56,7 +55,7 @@ export async function seedThalyaAgent(
       if (item.source === "RAG") return allowRag;
       if (item.source === "NATIVE" && Array.isArray(item.enabledTools)) {
         item.enabledTools = item.enabledTools.filter((tool) =>
-          allowKanban || !["kanban_move_card", "update_kanban_task"].includes(String(tool)),
+          !["kanban_move_card", "update_kanban_task"].includes(String(tool)),
         ).filter((tool) => allowHandoff || String(tool) !== "handoff_to_human");
       }
       if (item.source !== "INTEGRATION") return true;
