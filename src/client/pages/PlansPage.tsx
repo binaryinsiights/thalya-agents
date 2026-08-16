@@ -41,20 +41,23 @@ const FEATURE_FIELDS = [
   ["hsmTemplates", "Templates HSM"],
   ["reminders", "Lembretes automáticos"],
   ["specializedAgents", "Agentes especializados"],
-  ["langfuse", "Observabilidade Langfuse"],
-  ["executionLogs", "Logs de execução"],
   ["alerts", "Alertas Discord/webhook"],
   ["outboundWebhooks", "Webhooks de saída"],
-  ["audit", "Auditoria"],
-  ["backups", "Backups e restauração"],
-  ["monitoring", "Monitoramento"],
+] as const;
+
+const MANDATORY_PLATFORM = [
+  "Langfuse e traces",
+  "Logs de execução",
+  "Auditoria administrativa",
+  "Monitoramento e health checks",
+  "Backups e restauração",
 ] as const;
 
 const FEATURE_GROUPS = [
   ["Agente e multimodalidade", ["text", "stt", "tts", "vision", "memory", "debounce", "typing", "playground", "humanHandoff"]],
   ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "nativeTools", "toolpacks", "mcp", "customIntegrations"]],
   ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "followUp", "reminders", "specializedAgents", "asaas"]],
-  ["Observabilidade e plataforma", ["langfuse", "executionLogs", "alerts", "outboundWebhooks", "audit", "backups", "monitoring", "loadTest"]],
+  ["Plataforma e automações", ["alerts", "outboundWebhooks", "loadTest"]],
 ] as const;
 
 
@@ -173,6 +176,17 @@ export function PlansPage() {
 
             <fieldset>
               <legend className="mb-3 font-semibold text-text-primary">Recursos disponíveis</legend>
+              <div className="mb-5 rounded-lg border border-border bg-bg-tertiary p-4">
+                <h3 className="mb-2 text-sm font-semibold text-text-primary">Sempre incluídos</h3>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {MANDATORY_PLATFORM.map((item) => (
+                    <div key={item} className="flex items-center gap-2 text-sm text-text-secondary">
+                      <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                 {FEATURE_GROUPS.map(([group, keys]) => (
                   <div key={group}>
