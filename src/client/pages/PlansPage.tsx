@@ -60,12 +60,6 @@ type PlanForm = {
   displayName: string;
   limits: Record<string, number>;
   features: Record<string, boolean>;
-  delivery: {
-    support: string;
-    adjustmentRounds: number;
-    commitmentMonths: number;
-    reporting: string;
-  };
 };
 
 const emptyForm = (): PlanForm => ({
@@ -74,7 +68,6 @@ const emptyForm = (): PlanForm => ({
   displayName: "",
   limits: Object.fromEntries(LIMIT_FIELDS.map(([key]) => [key, 0])),
   features: Object.fromEntries(FEATURE_FIELDS.map(([key]) => [key, false])),
-  delivery: { support: "Horário comercial", adjustmentRounds: 2, commitmentMonths: 3, reporting: "simple" },
 });
 
 function formatDate(value: string | null | undefined) {
@@ -96,7 +89,6 @@ function formFromRow(row: PlanVersion): PlanForm {
     displayName: row.displayName,
     limits: { ...base.limits, ...(definition.limits ?? {}) },
     features: { ...base.features, ...(definition.features ?? {}) },
-    delivery: { ...base.delivery, ...(definition.delivery ?? {}) },
   };
 }
 
@@ -129,7 +121,6 @@ export function PlansPage() {
         schemaVersion: 1,
         limits: form.limits,
         features: form.features,
-        delivery: form.delivery,
       },
     });
     if (response.error) {
@@ -185,16 +176,6 @@ export function PlansPage() {
                     {label}
                   </label>
                 ))}
-              </div>
-            </fieldset>
-
-            <fieldset>
-              <legend className="mb-3 font-semibold text-text-primary">Entrega e suporte</legend>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <label className="space-y-1 text-sm text-text-secondary">Suporte<Input value={form.delivery.support} onChange={(e) => setForm({ ...form, delivery: { ...form.delivery, support: e.target.value } })} /></label>
-                <label className="space-y-1 text-sm text-text-secondary">Rodadas de ajustes<Input type="number" min="0" value={form.delivery.adjustmentRounds} onChange={(e) => setForm({ ...form, delivery: { ...form.delivery, adjustmentRounds: Number(e.target.value) } })} /></label>
-                <label className="space-y-1 text-sm text-text-secondary">Meses de compromisso<Input type="number" min="0" value={form.delivery.commitmentMonths} onChange={(e) => setForm({ ...form, delivery: { ...form.delivery, commitmentMonths: Number(e.target.value) } })} /></label>
-                <label className="space-y-1 text-sm text-text-secondary">Relatório<Input value={form.delivery.reporting} onChange={(e) => setForm({ ...form, delivery: { ...form.delivery, reporting: e.target.value } })} /></label>
               </div>
             </fieldset>
 
