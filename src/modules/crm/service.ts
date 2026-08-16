@@ -5,7 +5,7 @@ import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
 import { createVaultEntry } from "@/modules/vault/service";
 import { installationReadiness } from "./operations";
-import { CRM_PLAN_DEFINITIONS } from "./plans";
+import { CRM_PLAN_DEFINITIONS, runtimePlanDefinition } from "./plans";
 
 export const CRM_PLANS = CRM_PLAN_DEFINITIONS.map((plan) => ({
   id: plan.planCode,
@@ -313,10 +313,14 @@ export async function createCrmCustomer(
   const name = String(input.name ?? "").trim();
   const plan = String(input.plan ?? "").trim();
   if (!name || !plan) throw new AppError("name and plan are required", 400);
-  if (!CRM_PLAN_DEFINITIONS.some((item) => item.planCode === plan))
-    throw new AppError(`unknown plan ${plan}`, 400);
-  const row = await runScopedOn(base, ctx, (db) =>
-    db.crmCustomer.create({
+  const row = await runScopedOn(base, ctx, async (db) => {
+    const known = CRM_PLAN_DEFINITIONS.some((item) => item.planCode === plan)
+      || Boolean(await db.crmPlanVersion.findFirst({
+        where: { tenantId: tenantId(ctx), code: plan, retiredAt: null },
+        select: { id: true },
+      }));
+    if (!known) throw new AppError(`unknown plan ${plan}`, 400);
+    return db.crmCustomer.create({
       data: {
         tenantId: tenantId(ctx),
         name,
@@ -330,8 +334,8 @@ export async function createCrmCustomer(
         commercialStatus: String(input.commercialStatus ?? "LEAD"),
         notes: input.notes ? String(input.notes) : null,
       },
-    }),
-  );
+    });
+  });
   return json(row);
 }
 
@@ -354,8 +358,12 @@ export async function createCrmDeployment(
     if (!value.customer || !value.plan || !infrastructure || !agent)
       throw new AppError("manifest must include customer, plan, infrastructure and agent", 400);
     const manifestPlan = String((value.plan as Record<string, unknown>).code ?? "");
-    if (!CRM_PLAN_DEFINITIONS.some((item) => item.planCode === manifestPlan))
-      throw new AppError(`unknown manifest plan ${manifestPlan}`, 400);
+    const knownManifestPlan = CRM_PLAN_DEFINITIONS.some((item) => item.planCode === manifestPlan)
+      || Boolean(await runScopedOn(base, ctx, (db) => db.crmPlanVersion.findFirst({
+        where: { tenantId: tenantId(ctx), code: manifestPlan, retiredAt: null },
+        select: { id: true },
+      })));
+    if (!knownManifestPlan) throw new AppError(`unknown manifest plan ${manifestPlan}`, 400);
     if (!["DOCKER_COMPOSE", "COOLIFY"].includes(String(infrastructure.orchestrator ?? "").toUpperCase()))
       throw new AppError("manifest orchestrator must be DOCKER_COMPOSE or COOLIFY", 400);
     if (!agent.templateId || !agent.templateVersion)
@@ -453,10 +461,17 @@ export async function createCrmAgent(
   const row = await runScopedOn(base, ctx, async (db) => {
     const deployment = await db.crmDeployment.findUnique({
       where: { id: deploymentId },
-      include: { customer: { select: { plan: true } }, _count: { select: { remoteAgents: true } } },
+      include: {
+        customer: { select: { plan: true } },
+        contract: { include: { planVersion: true } },
+        _count: { select: { remoteAgents: true } },
+      },
     });
     if (!deployment) throw new NotFoundError("deployment not found");
-    const planDefinition = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === deployment.customer.plan);
+    const planDefinition = runtimePlanDefinition(
+      deployment.contract?.planVersion.code ?? deployment.customer.plan,
+      deployment.contract?.planVersion,
+    );
     if (!planDefinition) throw new AppError(`unknown plan ${deployment.customer.plan}`, 400);
     if (deployment._count.remoteAgents >= planDefinition.limits.agents)
       throw new AppError(`plan ${planDefinition.planCode} allows ${planDefinition.limits.agents} agents`, 409);

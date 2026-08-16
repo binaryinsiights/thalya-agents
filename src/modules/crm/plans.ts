@@ -120,6 +120,37 @@ export const CRM_PLAN_DEFINITIONS = [
   },
 ] as const;
 
+/**
+ * Converts a persisted catalog version into the runtime shape consumed by the
+ * provisioner. The built-in plan is only a fallback for legacy customers;
+ * edited versions always override limits, features and delivery settings.
+ */
+export function runtimePlanDefinition(
+  code: string,
+  persisted?: { version: string; displayName: string; definition: unknown } | null,
+) {
+  const base = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === code);
+  const raw = persisted?.definition;
+  if (!persisted || !raw || typeof raw !== "object" || Array.isArray(raw)) {
+    if (!base) return null;
+    return base;
+  }
+  const definition = raw as Record<string, unknown>;
+  const limits = definition.limits && typeof definition.limits === "object" ? definition.limits : {};
+  const features = definition.features && typeof definition.features === "object" ? definition.features : {};
+  const delivery = definition.delivery && typeof definition.delivery === "object" ? definition.delivery : {};
+  return {
+    ...(base ?? CRM_PLAN_DEFINITIONS[0]),
+    planCode: code,
+    version: persisted.version,
+    displayName: persisted.displayName,
+    limits: { ...(base?.limits ?? CRM_PLAN_DEFINITIONS[0].limits), ...(limits as object) },
+    features: { ...(base?.features ?? CRM_PLAN_DEFINITIONS[0].features), ...(features as object) },
+    delivery: { ...(base?.delivery ?? CRM_PLAN_DEFINITIONS[0].delivery), ...(delivery as object) },
+    ...(Array.isArray(definition.acceptance) ? { acceptance: definition.acceptance } : {}),
+  };
+}
+
 export const CRM_ONBOARDING_TEMPLATE = [
   ["GATE_0", "contract_approved", "Contrato aprovado"],
   ["GATE_0", "plan_registered", "Plano e versão registrados"],

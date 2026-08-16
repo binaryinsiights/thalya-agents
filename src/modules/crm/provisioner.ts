@@ -9,7 +9,7 @@ import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
 import { resolveVaultSecret } from "@/modules/vault/service";
 import { initializeOnboarding } from "./operations";
-import { CRM_PLAN_DEFINITIONS } from "./plans";
+import { runtimePlanDefinition } from "./plans";
 
 type LogEntry = { at: string; level: "info" | "error"; message: string };
 
@@ -445,7 +445,7 @@ async function executeCoolifyRun(
   const profile = target.profile;
   const planCode =
     target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
-  const plan = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === planCode);
+  const plan = runtimePlanDefinition(planCode, target.deployment.contract?.planVersion);
   if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
   const agentSeed = resolveAgentSeed(target.deployment.metadata);
   const publicUrl = (domain: unknown) => `https://${envValue(domain, "domain")}`;
@@ -678,7 +678,7 @@ async function installStack(
   const p = target.profile;
   const planCode =
     target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
-  const plan = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === planCode);
+  const plan = runtimePlanDefinition(planCode, target.deployment.contract?.planVersion);
   if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
   const agentSeed = resolveAgentSeed(target.deployment.metadata);
   const required = {
