@@ -53,6 +53,13 @@ const FEATURE_FIELDS = [
   ["whiteLabel", "Branding próprio"],
 ] as const;
 
+const FEATURE_GROUPS = [
+  ["Agente e multimodalidade", ["text", "stt", "tts", "vision", "memory", "debounce", "typing", "playground", "humanHandoff"]],
+  ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "nativeTools", "toolpacks", "mcp", "customIntegrations"]],
+  ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "kanban", "followUp", "reminders", "specializedAgents", "asaas"]],
+  ["Observabilidade e plataforma", ["langfuse", "executionLogs", "alerts", "outboundWebhooks", "audit", "backups", "monitoring", "loadTest", "multiVps", "whiteLabel"]],
+] as const;
+
 
 type PlanForm = {
   code: string;
@@ -169,12 +176,23 @@ export function PlansPage() {
 
             <fieldset>
               <legend className="mb-3 font-semibold text-text-primary">Recursos disponíveis</legend>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {FEATURE_FIELDS.map(([key, label]) => (
-                  <label key={key} className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-bg-tertiary px-3 py-3 text-sm text-text-primary">
-                    <input type="checkbox" checked={form.features[key] ?? false} onChange={(e) => setForm({ ...form, features: { ...form.features, [key]: e.target.checked } })} className="h-4 w-4 accent-accent" />
-                    {label}
-                  </label>
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                {FEATURE_GROUPS.map(([group, keys]) => (
+                  <div key={group}>
+                    <h3 className="mb-2 text-sm text-text-secondary">{group}</h3>
+                    <div className="space-y-2">
+                      {keys.map((key) => {
+                        const item = FEATURE_FIELDS.find(([field]) => field === key);
+                        if (!item) return null;
+                        return (
+                          <label key={key} className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
+                            <input type="checkbox" checked={form.features[key] ?? false} onChange={(e) => setForm({ ...form, features: { ...form.features, [key]: e.target.checked } })} className="h-4 w-4 accent-accent" />
+                            {item[1]}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ))}
               </div>
             </fieldset>
