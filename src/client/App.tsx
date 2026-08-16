@@ -241,9 +241,13 @@ export function App() {
                               <Route
                                 path="/plans"
                                 element={
-                                  <ProtectedRoute requireAdmin>
-                                    <PlansPage />
-                                  </ProtectedRoute>
+                                  BINARY_CRM_ENABLED ? (
+                                    <ProtectedRoute requireAdmin>
+                                      <PlansPage />
+                                    </ProtectedRoute>
+                                  ) : (
+                                    <Navigate to="/" replace />
+                                  )
                                 }
                               />
                               <Route

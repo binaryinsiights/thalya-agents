@@ -143,7 +143,7 @@ export function filterNavItems(
 ): NavItem[] {
   return items.filter(
     (item) =>
-      (crmEnabled || item.to !== "/crm") &&
+      (crmEnabled || (item.to !== "/crm" && item.to !== "/plans")) &&
       (!item.requireAdmin || isAdminRole(role)),
   );
 }
