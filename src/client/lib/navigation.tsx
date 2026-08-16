@@ -11,6 +11,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  Package,
   Webhook,
 } from "lucide-react";
 import type { ElementType, SVGProps } from "react";
@@ -48,6 +49,7 @@ export interface NavItem {
 // t('nav.admin', 'Admin')
 // t('nav.settings', 'Settings')
 // t('nav.crm', 'CRM')
+// t('nav.plans', 'Planos')
 export const NAV_ITEMS: NavItem[] = [
   {
     to: "/",
@@ -106,17 +108,24 @@ export const NAV_ITEMS: NavItem[] = [
     requireAdmin: true,
   },
   {
-    to: "/crm",
-    labelKey: "nav.crm",
-    defaultLabel: "Central Binary",
-    icon: BriefcaseBusiness,
-    requireAdmin: true,
-  },
-  {
     to: "/admin",
     labelKey: "nav.admin",
     defaultLabel: "Admin",
     icon: Shield,
+    requireAdmin: true,
+  },
+  {
+    to: "/plans",
+    labelKey: "nav.plans",
+    defaultLabel: "Planos",
+    icon: Package,
+    requireAdmin: true,
+  },
+  {
+    to: "/crm",
+    labelKey: "nav.crm",
+    defaultLabel: "Central Binary",
+    icon: BriefcaseBusiness,
     requireAdmin: true,
   },
   {

@@ -31,8 +31,10 @@ import {
   createCrmAgent,
   createCrmCustomer,
   createCrmDeployment,
+  createCrmPlanVersion,
   getCrmWorkspace,
   updateChecklistItem,
+  retireCrmPlanVersion,
 } from "@/modules/crm/service";
 
 function ctxOrThrow(ctx: TenantContext | null) {
@@ -70,6 +72,34 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
     ),
     response: errors(401, 403),
   })
+  .post(
+    "/plans/versions",
+    ({ tenantContext, body }) =>
+      createCrmPlanVersion(ctxOrThrow(tenantContext), body),
+    {
+      requireRole: "TENANT_ADMIN",
+      body,
+      detail: doc(
+        "Create plan version",
+        "Creates an immutable plan version for future contracts and deployments.",
+      ),
+      response: errors(400, 401, 403, 409),
+    },
+  )
+  .patch(
+    "/plans/versions/:id/retire",
+    ({ tenantContext, params }) =>
+      retireCrmPlanVersion(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Archive plan version",
+        "Archives or reactivates a plan version without deleting history.",
+      ),
+      response: errors(400, 401, 403, 404),
+    },
+  )
   .post(
     "/customers",
     ({ tenantContext, body }) =>

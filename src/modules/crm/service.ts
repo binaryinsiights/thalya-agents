@@ -240,6 +240,71 @@ export async function getCrmWorkspace(
   });
 }
 
+function parsePlanDefinition(input: unknown): Prisma.InputJsonValue {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new AppError("definition must be a JSON object", 400);
+  const definition = input as Record<string, unknown>;
+  if (!definition.limits || typeof definition.limits !== "object")
+    throw new AppError("definition.limits is required", 400);
+  if (!definition.features || typeof definition.features !== "object")
+    throw new AppError("definition.features is required", 400);
+  return definition as Prisma.InputJsonValue;
+}
+
+/** Creates a new immutable catalog version. Existing versions are never edited. */
+export async function createCrmPlanVersion(
+  ctx: TenantContext,
+  input: Record<string, unknown>,
+  base: PrismaClient = basePrisma,
+) {
+  const code = String(input.code ?? "").trim().toUpperCase();
+  const version = String(input.version ?? "").trim();
+  const displayName = String(input.displayName ?? "").trim();
+  if (!/^[A-Z][A-Z0-9_]{2,40}$/.test(code))
+    throw new AppError("invalid plan code", 400);
+  if (!/^\d+\.\d+\.\d+$/.test(version))
+    throw new AppError("version must use semantic versioning", 400);
+  if (!displayName) throw new AppError("displayName is required", 400);
+  const definition = parsePlanDefinition(input.definition);
+  const row = await runScopedOn(base, ctx, async (db) => {
+    const existing = await db.crmPlanVersion.findUnique({
+      where: { tenantId_code_version: { tenantId: tenantId(ctx), code, version } },
+      select: { id: true },
+    });
+    if (existing) throw new AppError("plan version already exists", 409);
+    return db.crmPlanVersion.create({
+      data: {
+        tenantId: tenantId(ctx),
+        code,
+        version,
+        displayName,
+        definition,
+      },
+    });
+  });
+  return json(row);
+}
+
+/** Archives a catalog version for new contracts without deleting historical data. */
+export async function retireCrmPlanVersion(
+  ctx: TenantContext,
+  id: bigint,
+  base: PrismaClient = basePrisma,
+) {
+  const row = await runScopedOn(base, ctx, async (db) => {
+    const current = await db.crmPlanVersion.findFirst({
+      where: { id },
+      include: { _count: { select: { contracts: true } } },
+    });
+    if (!current) throw new NotFoundError("plan version not found");
+    return db.crmPlanVersion.update({
+      where: { id },
+      data: { retiredAt: current.retiredAt ? null : new Date() },
+    });
+  });
+  return json(row);
+}
+
 export async function createCrmCustomer(
   ctx: TenantContext,
   input: Record<string, unknown>,

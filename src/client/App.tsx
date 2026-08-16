@@ -33,6 +33,7 @@ import { DashboardPage } from "@/client/pages/DashboardPage";
 import { LoginPage } from "@/client/pages/LoginPage";
 // NOTE: SettingsAboutPage removed (item 13); /settings/about now redirects to profile.
 import { LogsPage } from "@/client/pages/LogsPage";
+import { PlansPage } from "@/client/pages/PlansPage";
 import { McpPage } from "@/client/pages/McpPage";
 import { OAuthConsentPage } from "@/client/pages/OAuthConsentPage";
 import { AdvancedPanel } from "@/client/pages/resources/AdvancedPanel";
@@ -237,6 +238,14 @@ export function App() {
                                   element={<AdminBrandingPage />}
                                 />
                               </Route>
+                              <Route
+                                path="/plans"
+                                element={
+                                  <ProtectedRoute requireAdmin>
+                                    <PlansPage />
+                                  </ProtectedRoute>
+                                }
+                              />
                               <Route
                                 path="/settings"
                                 element={
