@@ -13,7 +13,6 @@ const LIMIT_FIELDS = [
   ["knowledgeDocuments", "Documentos de conhecimento"],
   ["monthlyAudioMinutes", "Minutos de áudio mensais"],
   ["monthlyTechnicalHours", "Horas técnicas mensais"],
-  ["customIntegrations", "Integrações personalizadas"],
 ] as const;
 
 const FEATURE_FIELDS = [
@@ -23,25 +22,17 @@ const FEATURE_FIELDS = [
   ["drive", "Google Drive"],
   ["followUp", "Follow-ups"],
   ["asaas", "Asaas / cobrança"],
-  ["customIntegrations", "Integrações personalizadas"],
   ["vision", "Visão para imagens e documentos"],
   ["debounce", "Debounce de mensagens"],
   ["typing", "Digitando e respostas humanizadas"],
   ["humanHandoff", "Handoff para humano"],
-  ["httpTools", "Ferramentas HTTP"],
-  ["toolpacks", "Toolpacks"],
-  ["mcp", "Servidores MCP"],
-  ["omnichannel", "Omnichannel"],
-  ["inboxRouting", "Roteamento por inbox"],
-  ["hsmTemplates", "Templates HSM"],
   ["reminders", "Lembretes automáticos"],
-  ["specializedAgents", "Agentes especializados"],
 ] as const;
 
 const FEATURE_GROUPS = [
   ["Agente e multimodalidade", ["stt", "tts", "vision", "debounce", "typing", "humanHandoff"]],
-  ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "toolpacks", "mcp", "customIntegrations"]],
-  ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "followUp", "reminders", "specializedAgents", "asaas"]],
+  ["Conhecimento e ferramentas", ["calendar", "drive"]],
+  ["Canais e operação", ["followUp", "reminders", "asaas"]],
 ] as const;
 
 
@@ -95,8 +86,8 @@ function formFromRow(row: PlanVersion, rows: PlanVersion[]): PlanForm {
     code: row.code,
     version: nextVersion(latest ?? row.version),
     displayName: row.displayName,
-    limits: { ...base.limits, ...(definition.limits ?? {}) },
-    features: { ...base.features, ...(definition.features ?? {}) },
+    limits: Object.fromEntries(LIMIT_FIELDS.map(([key]) => [key, Number(definition.limits?.[key] ?? base.limits[key] ?? 0)])),
+    features: Object.fromEntries(FEATURE_FIELDS.map(([key]) => [key, Boolean(definition.features?.[key] ?? base.features[key])])),
   };
 }
 
