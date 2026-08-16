@@ -27,8 +27,39 @@ export async function seedThalyaAgent(
 
   const enabled = (name: string, fallback = false) =>
     (process.env[name] ?? String(fallback)).toLowerCase() === "true";
+  let planFeatures: Record<string, unknown> = {};
+  let planCatalog: Record<string, unknown> = {};
+  try {
+    const encoded = process.env.BINARY_PLAN_DEFINITION_B64;
+    if (encoded) {
+      const definition = JSON.parse(Buffer.from(encoded, "base64").toString("utf8")) as Record<string, unknown>;
+      planFeatures = (definition.features as Record<string, unknown> | undefined) ?? {};
+      planCatalog = (definition.catalog as Record<string, unknown> | undefined) ?? {};
+    }
+  } catch {
+    logger.warn("Invalid BINARY_PLAN_DEFINITION_B64; using feature environment flags");
+  }
+  const planEnabled = (name: string, fallback = false) =>
+    typeof planFeatures[name] === "boolean" ? Boolean(planFeatures[name]) : fallback;
   const applyPlan = (payload: Record<string, unknown>) => {
     const agent = payload.agent as Record<string, unknown>;
+    const providers = Array.isArray(planCatalog.providers) ? planCatalog.providers : [];
+    const selectedProvider = String(providers[0] ?? "").toLowerCase();
+    const modelConfig = (agent.modelConfig ?? {}) as Record<string, unknown>;
+    if (selectedProvider) {
+      const providerMap: Record<string, string> = {
+        openai: "openai",
+        anthropic: "anthropic",
+        google: "google",
+        deepseek: "deepseek",
+        openrouter: "openrouter",
+        ollama: "openai-compatible",
+        "lm studio": "openai-compatible",
+        vllm: "openai-compatible",
+      };
+      modelConfig.provider = providerMap[selectedProvider] ?? modelConfig.provider;
+      agent.modelConfig = modelConfig;
+    }
     const settings = (agent.settings ?? {}) as Record<string, unknown>;
     const tools = Array.isArray(agent.tools) ? agent.tools : [];
     const allowRag = enabled("BINARY_FEATURE_RAG");
@@ -50,6 +81,14 @@ export async function seedThalyaAgent(
     if (settings.followUp && typeof settings.followUp === "object") {
       (settings.followUp as Record<string, unknown>).enabled = allowFollowUp;
     }
+    if (settings.vision && typeof settings.vision === "object")
+      (settings.vision as Record<string, unknown>).enabled = planEnabled("vision", true);
+    if (settings.debounce && typeof settings.debounce === "object")
+      (settings.debounce as Record<string, unknown>).enabled = planEnabled("debounce", true);
+    if (settings.split && typeof settings.split === "object")
+      (settings.split as Record<string, unknown>).enabled = planEnabled("typing", true);
+    if (settings.handoff && typeof settings.handoff === "object")
+      (settings.handoff as Record<string, unknown>).mode = planEnabled("humanHandoff", true) ? "route" : "disabled";
     if (!enabled("BINARY_FEATURE_STT")) {
       if (settings.stt && typeof settings.stt === "object")
         (settings.stt as Record<string, unknown>).enabled = false;
