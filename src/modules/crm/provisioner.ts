@@ -9,6 +9,7 @@ import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
 import { resolveVaultSecret } from "@/modules/vault/service";
 import { CRM_PLAN_DEFINITIONS } from "./plans";
+import { initializeOnboarding } from "./operations";
 
 type LogEntry = { at: string; level: "info" | "error"; message: string };
 
@@ -322,6 +323,7 @@ async function executeRun(
         },
       }),
     );
+    await initializeOnboarding(ctx, target.deployment.id, base);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Falha desconhecida";
@@ -544,6 +546,7 @@ async function executeCoolifyRun(
     },
   );
   await runScopedOn(base, ctx, (db) => db.crmDeployment.update({ where: { id: target.deployment.id }, data: { status: "AWAITING_SETUP", agentsUrl: publicUrl(domains.agents), chatwootUrl: publicUrl(domains.chatwoot), langfuseUrl: publicUrl(domains.langfuse), baileysUrl: publicUrl(domains.baileys), metadata: { ...(target.deployment.metadata as Record<string, unknown>), coolifyServices: { agents: agentsUuid, chatwoot: chatwootUuid, langfuse: langfuseUuid } } as Prisma.InputJsonValue } }));
+  await initializeOnboarding(ctx, target.deployment.id, base);
   await patchRun(ctx, runId, { status: "SUCCEEDED", phase: "AWAITING_SETUP", progress: 100, summary: "Serviços criados no Coolify. Aguardando configuração funcional.", finishedAt: new Date() }, base);
 }
 
