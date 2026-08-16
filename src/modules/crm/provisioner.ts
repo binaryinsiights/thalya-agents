@@ -26,7 +26,7 @@ function resolveAgentsImage(metadata: unknown) {
   const image = String(
       values.agentsImage ??
       process.env.BINARY_CLIENT_IMAGE ??
-      "ghcr.io/binaryinsiights/thalya-agents:client-2026.08.16.4",
+      "ghcr.io/binaryinsiights/thalya-agents:client-2026.08.16.6",
   ).trim();
   if (!image || /:(latest|main|dev)$/i.test(image))
     throw new AppError("an immutable agents image is required", 400);
