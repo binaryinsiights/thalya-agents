@@ -28,13 +28,11 @@ export async function seedThalyaAgent(
   const enabled = (name: string, fallback = false) =>
     (process.env[name] ?? String(fallback)).toLowerCase() === "true";
   let planFeatures: Record<string, unknown> = {};
-  let planCatalog: Record<string, unknown> = {};
   try {
     const encoded = process.env.BINARY_PLAN_DEFINITION_B64;
     if (encoded) {
       const definition = JSON.parse(Buffer.from(encoded, "base64").toString("utf8")) as Record<string, unknown>;
       planFeatures = (definition.features as Record<string, unknown> | undefined) ?? {};
-      planCatalog = (definition.catalog as Record<string, unknown> | undefined) ?? {};
     }
   } catch {
     logger.warn("Invalid BINARY_PLAN_DEFINITION_B64; using feature environment flags");
@@ -43,23 +41,6 @@ export async function seedThalyaAgent(
     typeof planFeatures[name] === "boolean" ? Boolean(planFeatures[name]) : fallback;
   const applyPlan = (payload: Record<string, unknown>) => {
     const agent = payload.agent as Record<string, unknown>;
-    const providers = Array.isArray(planCatalog.providers) ? planCatalog.providers : [];
-    const selectedProvider = String(providers[0] ?? "").toLowerCase();
-    const modelConfig = (agent.modelConfig ?? {}) as Record<string, unknown>;
-    if (selectedProvider) {
-      const providerMap: Record<string, string> = {
-        openai: "openai",
-        anthropic: "anthropic",
-        google: "google",
-        deepseek: "deepseek",
-        openrouter: "openrouter",
-        ollama: "openai-compatible",
-        "lm studio": "openai-compatible",
-        vllm: "openai-compatible",
-      };
-      modelConfig.provider = providerMap[selectedProvider] ?? modelConfig.provider;
-      agent.modelConfig = modelConfig;
-    }
     const settings = (agent.settings ?? {}) as Record<string, unknown>;
     const tools = Array.isArray(agent.tools) ? agent.tools : [];
     const allowRag = enabled("BINARY_FEATURE_RAG");

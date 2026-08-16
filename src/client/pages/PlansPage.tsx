@@ -53,9 +53,6 @@ const FEATURE_FIELDS = [
   ["whiteLabel", "Branding próprio"],
 ] as const;
 
-const PROVIDERS = ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter", "Ollama", "LM Studio", "vLLM"];
-const CHANNELS = ["WhatsApp / Baileys", "WhatsApp Cloud API", "Z-API", "360Dialog", "Chat do site", "Omnichannel Chatwoot"];
-const ORCHESTRATORS = ["Coolify", "Portainer", "Docker Compose"];
 
 type PlanForm = {
   code: string;
@@ -69,11 +66,6 @@ type PlanForm = {
     commitmentMonths: number;
     reporting: string;
   };
-  catalog: {
-    providers: string[];
-    channels: string[];
-    orchestrators: string[];
-  };
 };
 
 const emptyForm = (): PlanForm => ({
@@ -83,7 +75,6 @@ const emptyForm = (): PlanForm => ({
   limits: Object.fromEntries(LIMIT_FIELDS.map(([key]) => [key, 0])),
   features: Object.fromEntries(FEATURE_FIELDS.map(([key]) => [key, false])),
   delivery: { support: "Horário comercial", adjustmentRounds: 2, commitmentMonths: 3, reporting: "simple" },
-  catalog: { providers: ["OpenAI"], channels: ["WhatsApp / Baileys"], orchestrators: ["Coolify", "Docker Compose"] },
 });
 
 function formatDate(value: string | null | undefined) {
@@ -106,7 +97,6 @@ function formFromRow(row: PlanVersion): PlanForm {
     limits: { ...base.limits, ...(definition.limits ?? {}) },
     features: { ...base.features, ...(definition.features ?? {}) },
     delivery: { ...base.delivery, ...(definition.delivery ?? {}) },
-    catalog: { ...base.catalog, ...(definition.catalog ?? {}) },
   };
 }
 
@@ -140,7 +130,6 @@ export function PlansPage() {
         limits: form.limits,
         features: form.features,
         delivery: form.delivery,
-        catalog: form.catalog,
       },
     });
     if (response.error) {
@@ -195,42 +184,6 @@ export function PlansPage() {
                     <input type="checkbox" checked={form.features[key] ?? false} onChange={(e) => setForm({ ...form, features: { ...form.features, [key]: e.target.checked } })} className="h-4 w-4 accent-accent" />
                     {label}
                   </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <fieldset>
-              <legend className="mb-3 font-semibold text-text-primary">Catálogo de implantação</legend>
-              <div className="grid gap-5 md:grid-cols-3">
-                {([
-                  ["providers", "Modelos e provedores", PROVIDERS],
-                  ["channels", "Canais", CHANNELS],
-                  ["orchestrators", "Orquestradores", ORCHESTRATORS],
-                ] as const).map(([key, label, options]) => (
-                  <div key={key}>
-                    <h3 className="mb-2 text-sm text-text-secondary">{label}</h3>
-                    <div className="space-y-2">
-                      {options.map((option) => (
-                        <label key={option} className="flex cursor-pointer items-center gap-2 text-sm text-text-primary">
-                          <input
-                            type="checkbox"
-                            checked={form.catalog[key].includes(option)}
-                            onChange={(event) => setForm({
-                              ...form,
-                              catalog: {
-                                ...form.catalog,
-                                [key]: event.target.checked
-                                  ? [...form.catalog[key], option]
-                                  : form.catalog[key].filter((item) => item !== option),
-                              },
-                            })}
-                            className="h-4 w-4 accent-accent"
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
                 ))}
               </div>
             </fieldset>
