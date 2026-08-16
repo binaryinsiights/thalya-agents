@@ -90,6 +90,7 @@ async function buildPayload() {
     agents: state.agents.map((agent) => ({
       id: String(agent.id),
       name: agent.name,
+      plan: process.env.BINARY_PLAN ?? "MANAGED",
       mode: agent.mode,
       status: agent.enabled ? "ACTIVE" : "INACTIVE",
       channels: state.inboxes

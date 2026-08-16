@@ -385,23 +385,35 @@ export async function createCrmAgent(
   const plan = String(input.plan ?? "").trim();
   if (!name || !plan || deploymentId <= 0n)
     throw new AppError("deploymentId, name and plan are required", 400);
-  const row = await runScopedOn(base, ctx, (db) =>
-    db.crmRemoteAgent.create({
+  const row = await runScopedOn(base, ctx, async (db) => {
+    const deployment = await db.crmDeployment.findUnique({
+      where: { id: deploymentId },
+      include: { customer: { select: { plan: true } }, _count: { select: { remoteAgents: true } } },
+    });
+    if (!deployment) throw new NotFoundError("deployment not found");
+    const planDefinition = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === deployment.customer.plan);
+    if (!planDefinition) throw new AppError(`unknown plan ${deployment.customer.plan}`, 400);
+    if (deployment._count.remoteAgents >= planDefinition.limits.agents)
+      throw new AppError(`plan ${planDefinition.planCode} allows ${planDefinition.limits.agents} agents`, 409);
+    const channels = Array.isArray(input.channels) ? input.channels : [];
+    if (channels.length > planDefinition.limits.channels)
+      throw new AppError(`plan ${planDefinition.planCode} allows ${planDefinition.limits.channels} channels`, 409);
+    return db.crmRemoteAgent.create({
       data: {
         tenantId: tenantId(ctx),
         deploymentId,
         name,
-        plan,
+        plan: planDefinition.planCode,
         function: input.function ? String(input.function) : null,
         mode: String(input.mode ?? "TEST"),
         status: String(input.status ?? "INACTIVE"),
         template: input.template ? String(input.template) : null,
-        channels: (input.channels ?? []) as Prisma.InputJsonValue,
+        channels: channels as Prisma.InputJsonValue,
         integrations: (input.integrations ?? []) as Prisma.InputJsonValue,
         knowledgeBases: (input.knowledgeBases ?? []) as Prisma.InputJsonValue,
       },
-    }),
-  );
+    });
+  });
   return json(row);
 }
 

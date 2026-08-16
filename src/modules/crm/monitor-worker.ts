@@ -72,8 +72,8 @@ async function tick() {
             data: { health: "OFFLINE" },
           });
         }
-        const plan = CRM_PLAN_DEFINITIONS.find((item) =>
-          deployment.customer.plan.includes(item.planCode),
+        const plan = CRM_PLAN_DEFINITIONS.find(
+          (item) => deployment.customer.plan === item.planCode,
         );
         const usage = deployment.usageSnapshots[0];
         if (plan && usage) {

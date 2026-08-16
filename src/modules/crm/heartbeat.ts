@@ -50,6 +50,7 @@ const heartbeatSchema = z.object({
       z.object({
         id: z.string().max(200),
         name: z.string().max(200),
+        plan: z.string().max(50).optional(),
         function: z.string().max(200).optional(),
         mode: z.string().max(50),
         status: z.string().max(50),
@@ -249,6 +250,7 @@ export async function receiveCrmHeartbeat(params: {
       });
       const data = {
         name: agent.name,
+        plan: agent.plan ?? "MANAGED",
         function: agent.function,
         mode: agent.mode,
         status: agent.status,
