@@ -17,7 +17,6 @@ const LIMIT_FIELDS = [
 ] as const;
 
 const FEATURE_FIELDS = [
-  ["text", "Atendimento por texto"],
   ["stt", "Transcrição de áudio (STT)"],
   ["tts", "Resposta em áudio (TTS)"],
   ["calendar", "Agenda"],
@@ -25,15 +24,11 @@ const FEATURE_FIELDS = [
   ["followUp", "Follow-ups"],
   ["asaas", "Asaas / cobrança"],
   ["customIntegrations", "Integrações personalizadas"],
-  ["loadTest", "Teste de carga"],
   ["vision", "Visão para imagens e documentos"],
-  ["memory", "Memória durável por conversa"],
   ["debounce", "Debounce de mensagens"],
   ["typing", "Digitando e respostas humanizadas"],
-  ["playground", "Playground"],
   ["humanHandoff", "Handoff para humano"],
   ["httpTools", "Ferramentas HTTP"],
-  ["nativeTools", "Ferramentas nativas"],
   ["toolpacks", "Toolpacks"],
   ["mcp", "Servidores MCP"],
   ["omnichannel", "Omnichannel"],
@@ -44,8 +39,8 @@ const FEATURE_FIELDS = [
 ] as const;
 
 const FEATURE_GROUPS = [
-  ["Agente e multimodalidade", ["text", "stt", "tts", "vision", "memory", "debounce", "typing", "playground", "humanHandoff"]],
-  ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "nativeTools", "toolpacks", "mcp", "customIntegrations"]],
+  ["Agente e multimodalidade", ["stt", "tts", "vision", "debounce", "typing", "humanHandoff"]],
+  ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "toolpacks", "mcp", "customIntegrations"]],
   ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "followUp", "reminders", "specializedAgents", "asaas"]],
 ] as const;
 
@@ -76,12 +71,29 @@ function nextVersion(version: string) {
   return match ? `${match[1]}.${match[2]}.${Number(match[3]) + 1}` : "1.0.0";
 }
 
-function formFromRow(row: PlanVersion): PlanForm {
-  const definition = (row.definition ?? {}) as Record<string, any>;
+function formFromRow(row: PlanVersion, rows: PlanVersion[]): PlanForm {
+  // Older records can arrive as a JSON string after being imported. Normalize
+  // both shapes so opening the editor never fails on legacy plan versions.
+  let definition: Record<string, any> = {};
+  if (typeof row.definition === "string") {
+    try {
+      const parsed = JSON.parse(row.definition);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) definition = parsed;
+    } catch {
+      // Keep the defaults below when a legacy definition is malformed.
+    }
+  } else if (row.definition && typeof row.definition === "object" && !Array.isArray(row.definition)) {
+    definition = row.definition as Record<string, any>;
+  }
   const base = emptyForm();
+  const latest = rows
+    .filter((item) => item.code === row.code)
+    .map((item) => item.version)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .at(-1);
   return {
     code: row.code,
-    version: nextVersion(row.version),
+    version: nextVersion(latest ?? row.version),
     displayName: row.displayName,
     limits: { ...base.limits, ...(definition.limits ?? {}) },
     features: { ...base.features, ...(definition.features ?? {}) },
@@ -93,6 +105,7 @@ export function PlansPage() {
   const [rows, setRows] = useState<PlanVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<PlanForm | null>(null);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -120,11 +133,26 @@ export function PlansPage() {
       },
     });
     if (response.error) {
-      setError("Não foi possível salvar a versão do plano. Verifique código e versão.");
+      setError("Não foi possível salvar a versão do plano. Verifique código, versão e os dados preenchidos.");
       return;
     }
     setForm(null);
+    setEditing(false);
     await load();
+  };
+
+  const openNew = () => {
+    setError(null);
+    setEditing(false);
+    setForm(emptyForm());
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const openEditor = (row: PlanVersion) => {
+    setError(null);
+    setEditing(true);
+    setForm(formFromRow(row, rows));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const toggleArchived = async (row: PlanVersion) => {
@@ -140,13 +168,17 @@ export function PlansPage() {
           <h1 className="flex items-center gap-2 font-bold text-2xl text-text-primary"><Package className="h-6 w-6" aria-hidden="true" />Planos</h1>
           <p className="mt-1 text-sm text-text-secondary">Catálogo comercial e versões usadas em novos clientes.</p>
         </div>
-        <Button onClick={() => setForm(emptyForm())}><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Novo plano</Button>
+        <Button onClick={openNew}><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Novo plano</Button>
       </header>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {form && (
         <Card>
+          <div className="mb-4">
+            <h2 className="font-semibold text-lg text-text-primary">{editing ? "Editar plano" : "Novo plano"}</h2>
+            {editing && <p className="mt-1 text-sm text-text-secondary">Salvar cria uma nova versão do plano; a versão histórica permanece preservada.</p>}
+          </div>
           <form className="space-y-6" onSubmit={submit}>
             <div className="grid gap-4 md:grid-cols-3">
               <label className="space-y-1 text-sm text-text-secondary">Código<Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="PROFISSIONAL" required /></label>
@@ -186,7 +218,7 @@ export function PlansPage() {
               </div>
             </fieldset>
 
-            <div className="flex gap-2"><Button type="submit">Salvar versão</Button><Button type="button" variant="secondary" onClick={() => setForm(null)}>Cancelar</Button></div>
+            <div className="flex gap-2"><Button type="submit">{editing ? "Salvar alterações" : "Salvar versão"}</Button><Button type="button" variant="secondary" onClick={() => { setForm(null); setEditing(false); }}>Cancelar</Button></div>
           </form>
         </Card>
       )}
@@ -194,7 +226,7 @@ export function PlansPage() {
       <Card>
         {loading ? <p className="text-sm text-text-secondary">Carregando planos…</p> : rows.length === 0 ? <p className="text-sm text-text-secondary">Nenhum plano cadastrado.</p> : (
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-border border-b text-left"><th className="px-2 py-3 font-medium text-text-secondary">Plano</th><th className="px-2 py-3 font-medium text-text-secondary">Versão</th><th className="px-2 py-3 font-medium text-text-secondary">Publicado</th><th className="px-2 py-3 font-medium text-text-secondary">Estado</th><th className="px-2 py-3 font-medium text-text-secondary">Ação</th></tr></thead><tbody>
-            {rows.map((row) => <tr key={String(row.id)} className="border-border/50 border-b"><td className="px-2 py-3 text-text-primary">{row.displayName} <span className="text-text-muted">({row.code})</span></td><td className="px-2 py-3 font-mono text-text-secondary">{row.version}</td><td className="px-2 py-3 text-text-secondary">{formatDate(row.publishedAt)}</td><td className="px-2 py-3"><Badge variant={row.retiredAt ? "secondary" : "success"}>{row.retiredAt ? "Arquivado" : "Ativo"}</Badge></td><td className="flex gap-2 px-2 py-3"><Button variant="secondary" size="sm" onClick={() => setForm(formFromRow(row))}><Pencil className="mr-1 h-3.5 w-3.5" />Editar</Button><Button variant="secondary" size="sm" onClick={() => void toggleArchived(row)}>{row.retiredAt ? <RotateCcw className="mr-1 h-3.5 w-3.5" /> : <Archive className="mr-1 h-3.5 w-3.5" />}{row.retiredAt ? "Reativar" : "Arquivar"}</Button></td></tr>)}
+            {rows.map((row) => <tr key={String(row.id)} className="border-border/50 border-b"><td className="px-2 py-3 text-text-primary">{row.displayName} <span className="text-text-muted">({row.code})</span></td><td className="px-2 py-3 font-mono text-text-secondary">{row.version}</td><td className="px-2 py-3 text-text-secondary">{formatDate(row.publishedAt)}</td><td className="px-2 py-3"><Badge variant={row.retiredAt ? "secondary" : "success"}>{row.retiredAt ? "Arquivado" : "Ativo"}</Badge></td><td className="flex gap-2 px-2 py-3"><Button type="button" variant="secondary" size="sm" onClick={() => openEditor(row)}><Pencil className="mr-1 h-3.5 w-3.5" />Editar</Button><Button type="button" variant="secondary" size="sm" onClick={() => void toggleArchived(row)}>{row.retiredAt ? <RotateCcw className="mr-1 h-3.5 w-3.5" /> : <Archive className="mr-1 h-3.5 w-3.5" />}{row.retiredAt ? "Reativar" : "Arquivar"}</Button></td></tr>)}
           </tbody></table></div>
         )}
       </Card>
