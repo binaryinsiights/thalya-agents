@@ -47,6 +47,17 @@ describe("CRM installation readiness", () => {
     expect(installationReadiness(complete).percent).toBe(100);
   });
 
+  test("Coolify does not require SSH credentials", () => {
+    const result = installationReadiness({
+      ...complete,
+      serverHost: null,
+      serverUser: null,
+      sshCredentialRef: null,
+    });
+    expect(result.ready).toBe(true);
+    expect(result.missing).not.toContain("credencial SSH");
+  });
+
   test("Docker Compose requires SSH access instead of orchestrator access", () => {
     const result = installationReadiness({
       ...complete,

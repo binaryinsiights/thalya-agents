@@ -318,6 +318,7 @@ export function CrmPage() {
               <Deployments
                 rows={pendingDeployments}
                 contracts={data.contracts}
+                customers={data.customers}
                 creating={creating}
                 onSubmit={submitDeployment}
                 search={search}
@@ -902,6 +903,7 @@ function Contracts({
 function Deployments({
   rows,
   contracts,
+  customers,
   creating,
   onSubmit,
   search,
@@ -909,6 +911,7 @@ function Deployments({
 }: {
   rows: Deployment[];
   contracts: Workspace["contracts"];
+  customers: Customer[];
   creating: boolean;
   onSubmit(e: FormEvent<HTMLFormElement>): void;
   search: string;
@@ -923,14 +926,25 @@ function Deployments({
             Cadastrar instalação dedicada
           </h2>
           <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
-            <Field label="Contrato vendido">
-              <Select name="contractId" required>
+            <Field label="Contrato (opcional)">
+              <Select name="contractId">
+                <option value="">Sem contrato formal ainda</option>
                 {contracts.map((contract) => (
                   <option key={contract.id} value={contract.id}>
                     {contract.customer.name} ·{" "}
                     {contract.planVersion.displayName}
                     {" · "}
                     {contract.planVersion.version}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Cliente (quando não houver contrato)">
+              <Select name="customerId">
+                <option value="">Selecione se não houver contrato</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} · {customer.plan}
                   </option>
                 ))}
               </Select>
@@ -1183,10 +1197,11 @@ function InstallationProfiles({
               onChange={(event) => setMethod(event.target.value)}
             >
               <option value="DOCKER_COMPOSE">Docker Compose via SSH</option>
+              <option value="COOLIFY">Coolify via API</option>
             </Select>
             <p className="mt-1 text-text-secondary text-xs">
-              A Binary instala diretamente na VPS; nenhum painel adicional é
-              necessário.
+              Docker Compose usa SSH. Coolify usa a API oficial e mantém os
+              serviços dentro do painel.
             </p>
           </Field>
           {method !== "DOCKER_COMPOSE" && (
@@ -1209,6 +1224,22 @@ function InstallationProfiles({
                   }
                 />
               </Field>
+              {method === "COOLIFY" && (
+                <>
+                  <Field label="Projeto Coolify">
+                    <Input name="coolifyProjectUuid" defaultValue={value("coolifyProjectUuid")} />
+                  </Field>
+                  <Field label="Ambiente Coolify">
+                    <Input name="coolifyEnvironmentUuid" defaultValue={value("coolifyEnvironmentUuid")} />
+                  </Field>
+                  <Field label="Servidor Coolify">
+                    <Input name="coolifyServerUuid" defaultValue={value("coolifyServerUuid")} />
+                  </Field>
+                  <Field label="Destino Coolify (opcional)">
+                    <Input name="coolifyDestinationUuid" defaultValue={value("coolifyDestinationUuid")} />
+                  </Field>
+                </>
+              )}
             </>
           )}
         </ProfileSection>

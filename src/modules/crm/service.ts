@@ -248,6 +248,8 @@ export async function createCrmCustomer(
   const name = String(input.name ?? "").trim();
   const plan = String(input.plan ?? "").trim();
   if (!name || !plan) throw new AppError("name and plan are required", 400);
+  if (!CRM_PLAN_DEFINITIONS.some((item) => item.planCode === plan))
+    throw new AppError(`unknown plan ${plan}`, 400);
   const row = await runScopedOn(base, ctx, (db) =>
     db.crmCustomer.create({
       data: {
@@ -273,18 +275,50 @@ export async function createCrmDeployment(
   input: Record<string, unknown>,
   base: PrismaClient = basePrisma,
 ) {
-  const contractId = BigInt(String(input.contractId ?? "0"));
   const name = String(input.name ?? "").trim();
-  if (!name || contractId <= 0n)
-    throw new AppError("contractId and name are required", 400);
-  const contract = await runScopedOn(base, ctx, (db) =>
-    db.crmContract.findUnique({
-      where: { id: contractId },
-      select: { customerId: true },
-    }),
-  );
-  if (!contract) throw new NotFoundError("contract not found");
-  const customerId = contract.customerId;
+  if (!name) throw new AppError("name is required", 400);
+  const requestedContractId = String(input.contractId ?? "").trim();
+  const requestedCustomerId = String(input.customerId ?? "").trim();
+  const manifest = input.manifest;
+  if (manifest !== undefined) {
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest))
+      throw new AppError("manifest must be an object", 400);
+    const value = manifest as Record<string, unknown>;
+    const infrastructure = value.infrastructure as Record<string, unknown> | undefined;
+    const agent = value.agent as Record<string, unknown> | undefined;
+    if (!value.customer || !value.plan || !infrastructure || !agent)
+      throw new AppError("manifest must include customer, plan, infrastructure and agent", 400);
+    const manifestPlan = String((value.plan as Record<string, unknown>).code ?? "");
+    if (!CRM_PLAN_DEFINITIONS.some((item) => item.planCode === manifestPlan))
+      throw new AppError(`unknown manifest plan ${manifestPlan}`, 400);
+    if (!["DOCKER_COMPOSE", "COOLIFY"].includes(String(infrastructure.orchestrator ?? "").toUpperCase()))
+      throw new AppError("manifest orchestrator must be DOCKER_COMPOSE or COOLIFY", 400);
+    if (!agent.templateId || !agent.templateVersion)
+      throw new AppError("manifest agent template is incomplete", 400);
+  }
+  const contractId = requestedContractId ? BigInt(requestedContractId) : null;
+  const customerId = await runScopedOn(base, ctx, async (db) => {
+    if (contractId !== null) {
+      const contract = await db.crmContract.findUnique({
+        where: { id: contractId },
+        select: { customerId: true },
+      });
+      if (!contract) throw new NotFoundError("contract not found");
+      return contract.customerId;
+    }
+    if (!requestedCustomerId) {
+      throw new AppError(
+        "customerId is required when no contract is attached",
+        400,
+      );
+    }
+    const customer = await db.crmCustomer.findUnique({
+      where: { id: BigInt(requestedCustomerId) },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundError("customer not found");
+    return customer.id;
+  });
   const generated = !input.heartbeatSecretRef;
   const deploymentKey = String(input.deploymentKey ?? randomUUID());
   const heartbeatSecret = generated ? randomBytes(32).toString("hex") : null;
@@ -322,6 +356,10 @@ export async function createCrmDeployment(
         chatwootUrl: input.chatwootUrl ? String(input.chatwootUrl) : null,
         langfuseUrl: input.langfuseUrl ? String(input.langfuseUrl) : null,
         baileysUrl: input.baileysUrl ? String(input.baileysUrl) : null,
+        metadata: ({
+          ...((input.metadata ?? {}) as Record<string, unknown>),
+          ...(manifest !== undefined ? { provisionManifest: manifest } : {}),
+        }) as Prisma.InputJsonValue,
       },
     });
   });

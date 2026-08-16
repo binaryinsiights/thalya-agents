@@ -119,6 +119,8 @@ services:
       - 'storage:/app/storage'
     environment:
       - NODE_ENV=production
+      - 'SERVICE_FQDN_BAILEYS_3025=${SERVICE_FQDN_BAILEYS_3025}'
+      - 'SERVICE_URL_BAILEYS_3025=${SERVICE_URL_BAILEYS_3025}'
       - 'REDIS_URL=redis://redis:6379'
       - 'REDIS_PASSWORD=${SERVICE_PASSWORD_REDIS}'
       - 'LOG_LEVEL=${BAILEYS_API_LOG_LEVEL:-info}'

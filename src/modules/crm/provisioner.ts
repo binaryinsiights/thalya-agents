@@ -8,6 +8,7 @@ import basePrisma from "@/api/lib/prisma";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
 import { resolveVaultSecret } from "@/modules/vault/service";
+import { CRM_PLAN_DEFINITIONS } from "./plans";
 
 type LogEntry = { at: string; level: "info" | "error"; message: string };
 
@@ -18,6 +19,18 @@ const envValue = (value: unknown, label: string) => {
     throw new AppError(`${label} is invalid`, 400);
   return result;
 };
+
+function resolveAgentsImage(metadata: unknown) {
+  const values = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
+  const image = String(
+    values.agentsImage ??
+      process.env.BINARY_CLIENT_IMAGE ??
+      "ghcr.io/binaryinsiights/thalya-agents:crm-2026.08.15-enterprise.1",
+  ).trim();
+  if (!image || /:(latest|main|dev)$/i.test(image))
+    throw new AppError("an immutable agents image is required", 400);
+  return image;
+}
 
 async function loadTarget(
   ctx: TenantContext,
@@ -39,17 +52,34 @@ async function loadTarget(
       throw new AppError("complete the infrastructure form first", 400);
     if (!profile.authorized)
       throw new AppError("deployment is not authorized", 400);
-    if (profile.orchestrator !== "DOCKER_COMPOSE")
-      throw new AppError(
-        "select Docker Compose via SSH before starting this deployment",
-        400,
-      );
-    if (!profile.serverHost || !profile.serverUser || !profile.sshCredentialRef)
-      throw new AppError("SSH access is incomplete", 400);
-    const privateKey = await resolveVaultSecret<string>(
-      db,
-      profile.sshCredentialRef,
-    );
+    const orchestrator = String(profile.orchestrator ?? "").toUpperCase();
+    if (!["DOCKER_COMPOSE", "COOLIFY"].includes(orchestrator))
+      throw new AppError("unsupported orchestrator", 400);
+    const privateKey =
+      orchestrator === "DOCKER_COMPOSE"
+        ? await (async () => {
+            if (!profile.serverHost || !profile.serverUser || !profile.sshCredentialRef)
+              throw new AppError("SSH access is incomplete", 400);
+            return resolveVaultSecret<string>(db, profile.sshCredentialRef);
+          })()
+        : null;
+    const orchestratorToken =
+      orchestrator === "COOLIFY"
+        ? await (async () => {
+            if (
+              !profile.orchestratorUrl ||
+              !profile.orchestratorCredentialRef ||
+              !profile.coolifyProjectUuid ||
+              !profile.coolifyEnvironmentUuid ||
+              !profile.coolifyServerUuid
+            )
+              throw new AppError("Coolify configuration is incomplete", 400);
+            return resolveVaultSecret<string>(
+              db,
+              profile.orchestratorCredentialRef,
+            );
+          })()
+        : null;
     const passphrase = profile.sshPassphraseRef
       ? await resolveVaultSecret<string>(db, profile.sshPassphraseRef)
       : undefined;
@@ -59,6 +89,9 @@ async function loadTarget(
     const heartbeatSecret = deployment.heartbeatSecretRef
       ? await resolveVaultSecret<string>(db, deployment.heartbeatSecretRef)
       : null;
+    const registrySecret = profile.registryCredentialRef
+      ? await resolveVaultSecret<string>(db, profile.registryCredentialRef)
+      : null;
     const dnsSecret = profile.dnsCredentialRef
       ? await resolveVaultSecret<string>(db, profile.dnsCredentialRef)
       : null;
@@ -66,9 +99,11 @@ async function loadTarget(
       deployment,
       profile,
       privateKey,
+      orchestratorToken,
       passphrase,
       langfusePassword,
       heartbeatSecret,
+      registrySecret,
       dnsSecret,
     };
   });
@@ -155,7 +190,7 @@ function sshConfig(
     host: target.profile.serverHost as string,
     port: target.profile.serverPort,
     username: target.profile.serverUser as string,
-    privateKey: target.privateKey,
+    privateKey: target.privateKey as string,
     ...(target.passphrase ? { passphrase: target.passphrase } : {}),
   };
 }
@@ -207,6 +242,10 @@ async function executeRun(
 ) {
   let client: Client | null = null;
   try {
+    if (String(target.profile.orchestrator ?? "").toUpperCase() === "COOLIFY") {
+      await executeCoolifyRun(ctx, runId, target, base);
+      return;
+    }
     await patchRun(
       ctx,
       runId,
@@ -308,6 +347,206 @@ async function executeRun(
   }
 }
 
+type CoolifyTarget = Awaited<ReturnType<typeof loadTarget>>;
+
+async function coolifyRequest(
+  target: CoolifyTarget,
+  path: string,
+  init: RequestInit = {},
+) {
+  if (!target.profile.orchestratorUrl || !target.orchestratorToken)
+    throw new AppError("Coolify credentials are incomplete", 400);
+  const response = await fetch(
+    `${target.profile.orchestratorUrl.replace(/\/+$/, "")}/api/v1${path}`,
+    {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${target.orchestratorToken}`,
+        "content-type": "application/json",
+        ...(init.headers ?? {}),
+      },
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  const text = await response.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
+  if (!response.ok)
+    throw new AppError(
+      `Coolify API ${response.status}: ${typeof body === "string" ? body : JSON.stringify(body)}`,
+      502,
+    );
+  return body as Record<string, unknown>;
+}
+
+async function createCoolifyService(
+  target: CoolifyTarget,
+  name: string,
+  compose: string,
+  env: Record<string, string>,
+) {
+  const created = await coolifyRequest(target, "/services", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description: "Provisionado pela Central Binary",
+      project_uuid: target.profile.coolifyProjectUuid,
+      environment_uuid: target.profile.coolifyEnvironmentUuid,
+      server_uuid: target.profile.coolifyServerUuid,
+      destination_uuid: target.profile.coolifyDestinationUuid || undefined,
+      docker_compose_raw: Buffer.from(compose, "utf8").toString("base64"),
+      instant_deploy: false,
+      force_domain_override: false,
+    }),
+  });
+  const uuid = String(created.uuid ?? "");
+  if (!uuid) throw new AppError(`Coolify did not return a service UUID for ${name}`, 502);
+  for (const [key, value] of Object.entries(env)) {
+    await coolifyRequest(target, `/services/${uuid}/envs`, {
+      method: "POST",
+      body: JSON.stringify({ key, value, is_preview: false, is_literal: true, is_multiline: value.includes("\n") }),
+    });
+  }
+  await coolifyRequest(target, `/services/${uuid}/start`);
+  return uuid;
+}
+
+async function executeCoolifyRun(
+  ctx: TenantContext,
+  runId: bigint,
+  target: CoolifyTarget,
+  base: PrismaClient,
+) {
+  await configureDns(ctx, runId, target, base);
+  await patchRun(ctx, runId, { status: "RUNNING", phase: "COOLIFY", progress: 10, startedAt: new Date() }, base);
+  await log(ctx, runId, { level: "info", message: "Conectando à API do Coolify." }, base);
+  const profile = target.profile;
+  const planCode =
+    target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
+  const plan = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === planCode);
+  if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
+  const publicUrl = (domain: unknown) => `https://${envValue(domain, "domain")}`;
+  const secrets = {
+    agentsDb: secret(24),
+    agentsApp: secret(24),
+    chatwootDb: secret(24),
+    chatwootSecret: secret(64),
+    redis: secret(24),
+    langfuseDb: secret(24),
+    langfuseSalt: secret(),
+    langfuseEncryption: secret(),
+    langfuseNextAuth: secret(),
+    clickhouse: secret(24),
+    minioUser: `minio-${secret(8)}`,
+    minioPassword: secret(24),
+    baileys: secret(24),
+  };
+  const domains = {
+    agents: envValue(profile.agentsDomain, "agentsDomain"),
+    chatwoot: envValue(profile.chatwootDomain, "chatwootDomain"),
+    langfuse: envValue(profile.langfuseDomain, "langfuseDomain"),
+    baileys: envValue(profile.baileysDomain, "baileysDomain"),
+  };
+  const commonAgents = {
+    AGENTS_IMAGE: resolveAgentsImage(target.deployment.metadata),
+    PUBLIC_URL: publicUrl(domains.agents),
+    CORS_ORIGIN: publicUrl(domains.agents),
+    FLEET_CONTROL_URL: process.env.PUBLIC_URL ?? "",
+    FLEET_DEPLOYMENT_KEY: target.deployment.deploymentKey ?? "",
+    FLEET_HEARTBEAT_SECRET: target.heartbeatSecret ?? "",
+    FLEET_CHATWOOT_HEALTH_URL: publicUrl(domains.chatwoot),
+    FLEET_BAILEYS_HEALTH_URL: `https://${domains.baileys}/status`,
+    FLEET_LANGFUSE_HEALTH_URL: `https://${domains.langfuse}/api/public/health`,
+    BINARY_CRM_ENABLED: "false",
+    THALYA_SEED_AGENT: "true",
+    BINARY_PLAN: plan.planCode,
+    BINARY_PLAN_VERSION: plan.version,
+    BINARY_FEATURE_RAG: String(plan.limits.knowledgeDocuments > 0),
+    BINARY_FEATURE_CALENDAR: String(plan.features.calendar),
+    BINARY_FEATURE_AUDIO: String(plan.features.stt || plan.features.tts),
+    BINARY_FEATURE_FOLLOWUPS: String(plan.features.followUp),
+    BINARY_FEATURE_ASAAS: String(plan.features.asaas),
+    BINARY_LIMIT_AGENTS: String(plan.limits.agents),
+    BINARY_LIMIT_CHANNELS: String(plan.limits.channels),
+    BINARY_LIMIT_DOCUMENTS: String(plan.limits.knowledgeDocuments),
+    BINARY_LIMIT_MONTHLY_CONVERSATIONS: String(plan.limits.monthlyConversations),
+  };
+  await patchRun(ctx, runId, { phase: "AGENTS", progress: 35 }, base);
+  const agentsUuid = await createCoolifyService(
+    target,
+    `${target.deployment.name}-agents`,
+    await Bun.file(path.join(process.cwd(), "docker-compose.coolify.yml")).text(),
+    {
+      ...commonAgents,
+      SERVICE_URL_AGENTS: publicUrl(domains.agents),
+      SERVICE_USER_DBUSER: "postgres",
+      SERVICE_PASSWORD_64_DBPASSWORD: secrets.agentsDb,
+      SERVICE_USER_APPDBUSER: "secv4_app",
+      SERVICE_PASSWORD_64_APPDBPASSWORD: secrets.agentsApp,
+      SERVICE_PASSWORD_64_JWTSECRET: secret(),
+      SERVICE_PASSWORD_64_ENCRYPTIONKEY: secret(),
+      POSTGRES_DB: "secretaria_v4_db",
+    },
+  );
+  await patchRun(ctx, runId, { phase: "CHATWOOT", progress: 55 }, base);
+  const chatwootUuid = await createCoolifyService(
+    target,
+    `${target.deployment.name}-chatwoot`,
+    await Bun.file(path.join(process.cwd(), ".claude/skills/agents-onboarding/templates/chatwoot/docker-compose.coolify.yml")).text(),
+    {
+      SERVICE_URL_CHATWOOT: publicUrl(domains.chatwoot),
+      SERVICE_FQDN_BAILEYS_3025: domains.baileys,
+      SERVICE_URL_BAILEYS_3025: publicUrl(domains.baileys),
+      SERVICE_USER_POSTGRES: "chatwoot",
+      SERVICE_PASSWORD_POSTGRES: secrets.chatwootDb,
+      SERVICE_PASSWORD_64_SECRETKEYBASE: secrets.chatwootSecret,
+      SERVICE_PASSWORD_REDIS: secrets.redis,
+      SERVICE_PASSWORD_64_DEFAULTAPIKEY: secrets.baileys,
+      POSTGRES_DB: "chatwoot_production",
+      CHATWOOT_IMAGE: "ghcr.io/fazer-ai/chatwoot:latest",
+      BAILEYS_PROVIDER_DEFAULT_CLIENT_NAME: "Binary Atendimento",
+    },
+  );
+  await patchRun(ctx, runId, { phase: "LANGFUSE", progress: 75 }, base);
+  const langfuseUuid = await createCoolifyService(
+    target,
+    `${target.deployment.name}-langfuse`,
+    await Bun.file(path.join(process.cwd(), ".claude/skills/agents-onboarding/templates/langfuse/docker-compose.coolify.yml")).text(),
+    {
+      SERVICE_URL_LANGFUSE: publicUrl(domains.langfuse),
+      SERVICE_URL_LANGFUSE_3000: publicUrl(domains.langfuse),
+      SERVICE_FQDN_LANGFUSE_3000: domains.langfuse,
+      SERVICE_USER_POSTGRES: "langfuse",
+      SERVICE_PASSWORD_POSTGRES: secrets.langfuseDb,
+      SERVICE_PASSWORD_SALT: secrets.langfuseSalt,
+      SERVICE_PASSWORD_64_LANGFUSE: secrets.langfuseEncryption,
+      SERVICE_BASE64_NEXTAUTHSECRET: secrets.langfuseNextAuth,
+      SERVICE_USER_CLICKHOUSE: "clickhouse",
+      SERVICE_PASSWORD_CLICKHOUSE: secrets.clickhouse,
+      SERVICE_PASSWORD_REDIS: secrets.redis,
+      SERVICE_USER_MINIO: secrets.minioUser,
+      SERVICE_PASSWORD_MINIO: secrets.minioPassword,
+      POSTGRES_DB: "langfuse",
+      LANGFUSE_INIT_ORG_ID: `binary-${target.deployment.instanceId ?? runId}`,
+      LANGFUSE_INIT_ORG_NAME: target.deployment.customer.name,
+      LANGFUSE_INIT_PROJECT_ID: "agents",
+      LANGFUSE_INIT_PROJECT_NAME: "Binary Agents",
+      LANGFUSE_INIT_USER_EMAIL: envValue(profile.langfuseAdminEmail, "langfuseAdminEmail"),
+      LANGFUSE_INIT_USER_NAME: "Administrador",
+      LANGFUSE_INIT_USER_PASSWORD: target.langfusePassword ?? "",
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: `pk-lf-${secret(16)}`,
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: `sk-lf-${secret(24)}`,
+      AUTH_DISABLE_SIGNUP: "true",
+    },
+  );
+  await runScopedOn(base, ctx, (db) => db.crmDeployment.update({ where: { id: target.deployment.id }, data: { status: "AWAITING_SETUP", agentsUrl: publicUrl(domains.agents), chatwootUrl: publicUrl(domains.chatwoot), langfuseUrl: publicUrl(domains.langfuse), baileysUrl: publicUrl(domains.baileys), metadata: { ...(target.deployment.metadata as Record<string, unknown>), coolifyServices: { agents: agentsUuid, chatwoot: chatwootUuid, langfuse: langfuseUuid } } as Prisma.InputJsonValue } }));
+  await patchRun(ctx, runId, { status: "SUCCEEDED", phase: "AWAITING_SETUP", progress: 100, summary: "Serviços criados no Coolify. Aguardando configuração funcional.", finishedAt: new Date() }, base);
+}
+
 async function configureDns(
   ctx: TenantContext,
   runId: bigint,
@@ -404,31 +643,6 @@ async function configureDns(
   );
 }
 
-async function createSourceArchive(output: string) {
-  const root = process.cwd();
-  const proc = Bun.spawn(
-    [
-      "tar",
-      "-czf",
-      output,
-      "--exclude=.git",
-      "--exclude=node_modules",
-      "--exclude=dist",
-      "--exclude=logs",
-      "--exclude=.env",
-      "-C",
-      root,
-      ".",
-    ],
-    { stdout: "ignore", stderr: "pipe" },
-  );
-  const code = await proc.exited;
-  if (code !== 0)
-    throw new Error(
-      `source bundle failed: ${await new Response(proc.stderr).text()}`,
-    );
-}
-
 async function installStack(
   ctx: TenantContext,
   runId: bigint,
@@ -437,6 +651,10 @@ async function installStack(
   base: PrismaClient,
 ) {
   const p = target.profile;
+  const planCode =
+    target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
+  const plan = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === planCode);
+  if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
   const required = {
     agentsDomain: p.agentsDomain,
     chatwootDomain: p.chatwootDomain,
@@ -452,14 +670,18 @@ async function installStack(
   )
     throw new AppError("installation credentials are incomplete", 400);
 
-  const work = `/tmp/binary-provision-${runId}`;
-  const archive = `${work}.tgz`;
-  const localFiles: string[] = [archive];
+  const metadata = (target.deployment.metadata ?? {}) as Record<string, unknown>;
+  const agentsImage = resolveAgentsImage(target.deployment.metadata);
+  const registry = String(metadata.registry ?? "").trim();
+  const registryUsername = String(metadata.registryUsername ?? "").trim();
+  if (target.registrySecret && (!registry || !registryUsername))
+    throw new AppError("registry and registryUsername are required with a registry credential", 400);
+  const localFiles: string[] = [];
   const remoteRoot = ".binary-insights";
   const agentsDb = secret(24);
   const agentsApp = secret(24);
   let agentsEnv = `${[
-    `AGENTS_IMAGE=binary-insights/thalya-agents:client-${runId}`,
+    `AGENTS_IMAGE=${agentsImage}`,
     `PUBLIC_URL=https://${p.agentsDomain}`,
     `CORS_ORIGIN=https://${p.agentsDomain}`,
     `CADDY_DOMAIN=${p.agentsDomain}`,
@@ -478,6 +700,20 @@ async function installStack(
     `FLEET_CONTROL_URL=${process.env.PUBLIC_URL}`,
     `FLEET_DEPLOYMENT_KEY=${target.deployment.deploymentKey}`,
     `FLEET_HEARTBEAT_SECRET=${target.heartbeatSecret}`,
+    `FLEET_CHATWOOT_HEALTH_URL=https://${p.chatwootDomain}`,
+    `FLEET_BAILEYS_HEALTH_URL=http://host.docker.internal:3025/status`,
+    `FLEET_LANGFUSE_HEALTH_URL=https://${p.langfuseDomain}/api/public/health`,
+    `BINARY_PLAN=${plan.planCode}`,
+    `BINARY_PLAN_VERSION=${plan.version}`,
+    `BINARY_FEATURE_RAG=${plan.limits.knowledgeDocuments > 0}`,
+    `BINARY_FEATURE_CALENDAR=${plan.features.calendar}`,
+    `BINARY_FEATURE_AUDIO=${plan.features.stt || plan.features.tts}`,
+    `BINARY_FEATURE_FOLLOWUPS=${plan.features.followUp}`,
+    `BINARY_FEATURE_ASAAS=${plan.features.asaas}`,
+    `BINARY_LIMIT_AGENTS=${plan.limits.agents}`,
+    `BINARY_LIMIT_CHANNELS=${plan.limits.channels}`,
+    `BINARY_LIMIT_DOCUMENTS=${plan.limits.knowledgeDocuments}`,
+    `BINARY_LIMIT_MONTHLY_CONVERSATIONS=${plan.limits.monthlyConversations}`,
     "BINARY_CRM_ENABLED=false",
     "THALYA_SEED_AGENT=true",
   ].join("\n")}\n`;
@@ -519,7 +755,6 @@ async function installStack(
   ].join("\n")}\n`;
 
   await patchRun(ctx, runId, { phase: "PACKAGING", progress: 25 }, base);
-  await createSourceArchive(archive);
   const assets = path.join(process.cwd(), "deploy", "binary-client");
   const tempFiles = [
     ["agents.env", agentsEnv],
@@ -532,10 +767,7 @@ async function installStack(
     localFiles.push(file);
   }
   try {
-    await exec(
-      client,
-      `set -eu; mkdir -p ${remoteRoot}/source ${remoteRoot}/agents ${remoteRoot}/chatwoot ${remoteRoot}/langfuse`,
-    );
+    await exec(client, `set -eu; mkdir -p ${remoteRoot}/agents ${remoteRoot}/chatwoot ${remoteRoot}/langfuse`);
     const port80Busy = await exec(
       client,
       "ss -lntH 2>/dev/null | awk '$4 ~ /:80$/ {found=1} END {exit(found ? 0 : 1)}'",
@@ -557,7 +789,6 @@ async function installStack(
     }
     await Bun.write(localFiles[1] as string, agentsEnv);
     await patchRun(ctx, runId, { phase: "UPLOADING", progress: 35 }, base);
-    await upload(client, archive, `${remoteRoot}/source.tgz`);
     await upload(
       client,
       path.join(assets, "agents.yml"),
@@ -584,17 +815,13 @@ async function installStack(
       localFiles[3] as string,
       `${remoteRoot}/langfuse/.env`,
     );
-    await patchRun(ctx, runId, { phase: "BUILDING", progress: 50 }, base);
-    await log(
-      ctx,
-      runId,
-      { level: "info", message: "Construindo a imagem Binary na VPS." },
-      base,
-    );
-    await exec(
-      client,
-      `set -eu; rm -rf ${remoteRoot}/source/*; tar -xzf ${remoteRoot}/source.tgz -C ${remoteRoot}/source; docker build -t binary-insights/thalya-agents:client-${runId} ${remoteRoot}/source`,
-    );
+    await patchRun(ctx, runId, { phase: "PULLING", progress: 50 }, base);
+    await log(ctx, runId, { level: "info", message: `Baixando imagem imutável ${agentsImage}.` }, base);
+    if (target.registrySecret) {
+      const encoded = Buffer.from(target.registrySecret, "utf8").toString("base64");
+      await exec(client, `set -eu; printf '%s' '${encoded}' | base64 -d | docker login '${registry}' --username '${registryUsername}' --password-stdin`);
+    }
+    await exec(client, `set -eu; cd ${remoteRoot}/agents; docker compose pull agents`);
     for (const [phase, progress, dir, project] of [
       ["CHATWOOT", 65, "chatwoot", "binary_chatwoot"],
       ["LANGFUSE", 78, "langfuse", "binary_langfuse"],

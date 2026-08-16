@@ -52,6 +52,10 @@ const PROFILE_FIELDS = [
   "orchestrator",
   "orchestratorUrl",
   "orchestratorCredentialRef",
+  "coolifyProjectUuid",
+  "coolifyEnvironmentUuid",
+  "coolifyServerUuid",
+  "coolifyDestinationUuid",
   "dnsProvider",
   "dnsMode",
   "dnsZone",
@@ -76,7 +80,6 @@ export function installationReadiness(profile: Record<string, unknown> | null) {
   if (!profile) return { ready: false, percent: 0, missing: ["ficha técnica"] };
   const orchestrator = String(profile.orchestrator ?? "").toUpperCase();
   const required = [
-    ["host da VPS", profile.serverHost],
     ["orquestrador", profile.orchestrator],
     ["provedor DNS", profile.dnsProvider],
     ["zona DNS", profile.dnsZone],
@@ -88,16 +91,31 @@ export function installationReadiness(profile: Record<string, unknown> | null) {
     ["senha administrador Langfuse", profile.langfuseAdminPasswordRef],
     ["e-mail TLS", profile.acmeEmail],
     ["autorização", profile.authorized],
-    ["usuário SSH", profile.serverUser],
-    ["credencial SSH", profile.sshCredentialRef],
+    ...(orchestrator === "DOCKER_COMPOSE"
+      ? [
+          ["host da VPS", profile.serverHost],
+          ["usuário SSH", profile.serverUser],
+          ["credencial SSH", profile.sshCredentialRef],
+        ]
+      : []),
     ...(String(profile.dnsMode ?? "MANUAL").toUpperCase() === "AUTOMATIC"
-      ? [["token DNS", profile.dnsCredentialRef]]
+      ? [
+          ["token DNS", profile.dnsCredentialRef],
+          ["host da VPS para DNS", profile.serverHost],
+        ]
       : []),
     ...(orchestrator === "DOCKER_COMPOSE"
       ? []
       : [
           ["URL do orquestrador", profile.orchestratorUrl],
           ["credencial do orquestrador", profile.orchestratorCredentialRef],
+          ...(orchestrator === "COOLIFY"
+            ? [
+                ["projeto Coolify", profile.coolifyProjectUuid],
+                ["ambiente Coolify", profile.coolifyEnvironmentUuid],
+                ["servidor Coolify", profile.coolifyServerUuid],
+              ]
+            : []),
         ]),
   ] as Array<[string, unknown]>;
   const missing = required

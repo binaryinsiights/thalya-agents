@@ -79,8 +79,8 @@ services:
     # Harbor image, project `agents`, after `docker login` — hub: create_registry_credential, per-user).
     # PLACEHOLDER: the public Free image is not published yet — swap `agents` once it exists.
     image: ${AGENTS_IMAGE:-ghcr.io/fazer-ai/agents:latest}
-    # The CRM builds this tenant-specific image locally from the private Binary source bundle.
-    pull_policy: never
+    # The Central Binary selects and pulls an immutable image from the registry.
+    pull_policy: always
     restart: always
     # NOTE: no `command` here on purpose — the image entrypoint runs, in order: db-bootstrap.ts (idempotent
     # runtime-role provisioning) → prisma migrate deploy → serve. Overriding risks drifting from that contract.
@@ -119,6 +119,17 @@ services:
       - FLEET_CHATWOOT_HEALTH_URL=https://${CHATWOOT_DOMAIN}
       - FLEET_BAILEYS_HEALTH_URL=http://host.docker.internal:3025/status
       - FLEET_LANGFUSE_HEALTH_URL=https://${LANGFUSE_DOMAIN}/api/public/health
+      - BINARY_PLAN=${BINARY_PLAN:-ESSENCIAL}
+      - BINARY_PLAN_VERSION=${BINARY_PLAN_VERSION:-1.0.0}
+      - BINARY_FEATURE_RAG=${BINARY_FEATURE_RAG:-false}
+      - BINARY_FEATURE_CALENDAR=${BINARY_FEATURE_CALENDAR:-false}
+      - BINARY_FEATURE_AUDIO=${BINARY_FEATURE_AUDIO:-false}
+      - BINARY_FEATURE_FOLLOWUPS=${BINARY_FEATURE_FOLLOWUPS:-false}
+      - BINARY_FEATURE_ASAAS=${BINARY_FEATURE_ASAAS:-false}
+      - BINARY_LIMIT_AGENTS=${BINARY_LIMIT_AGENTS:-1}
+      - BINARY_LIMIT_CHANNELS=${BINARY_LIMIT_CHANNELS:-1}
+      - BINARY_LIMIT_DOCUMENTS=${BINARY_LIMIT_DOCUMENTS:-0}
+      - BINARY_LIMIT_MONTHLY_CONVERSATIONS=${BINARY_LIMIT_MONTHLY_CONVERSATIONS:-0}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     # No host port publish: Caddy is the only ingress and reaches the app over the compose network.

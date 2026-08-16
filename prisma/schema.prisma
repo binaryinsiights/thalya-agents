@@ -321,6 +321,10 @@ model CrmInstallationProfile {
   orchestrator String?
   orchestratorUrl String? @map("orchestrator_url")
   orchestratorCredentialRef String? @map("orchestrator_credential_ref")
+  coolifyProjectUuid String? @map("coolify_project_uuid")
+  coolifyEnvironmentUuid String? @map("coolify_environment_uuid")
+  coolifyServerUuid String? @map("coolify_server_uuid")
+  coolifyDestinationUuid String? @map("coolify_destination_uuid")
   dnsProvider String? @map("dns_provider")
   dnsMode String @default("MANUAL") @map("dns_mode")
   dnsZone String? @map("dns_zone")

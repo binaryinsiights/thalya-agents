@@ -39,7 +39,7 @@ async function buildPayload() {
     1,
   );
   const state = await asSuperAdminOn(basePrisma, async (db) => {
-    const [agents, documents, integrations, usage, conversations] =
+    const [agents, inboxes, documents, integrations, usage, conversations, executionStages] =
       await Promise.all([
         db.agent.findMany({
           select: {
@@ -50,6 +50,9 @@ async function buildPayload() {
             updatedAt: true,
           },
         }),
+        db.inbox.findMany({
+          select: { agentId: true, channelType: true, provider: true },
+        }),
         db.knowledgeDocument.groupBy({ by: ["status"], _count: true }),
         db.integrationInstance.count(),
         db.llmUsage.aggregate({
@@ -57,8 +60,13 @@ async function buildPayload() {
           _sum: { promptTokens: true, completionTokens: true, costUsd: true },
         }),
         db.conversation.count({ where: { createdAt: { gte: periodStart } } }),
+        db.executionLog.groupBy({
+          by: ["stage"],
+          where: { createdAt: { gte: periodStart }, source: "inbox" },
+          _count: true,
+        }),
       ]);
-    return { agents, documents, integrations, usage, conversations };
+    return { agents, inboxes, documents, integrations, usage, conversations, executionStages };
   });
   const [chatwoot, baileys, langfuse] = await Promise.all([
     serviceStatus(process.env.FLEET_CHATWOOT_HEALTH_URL),
@@ -84,11 +92,10 @@ async function buildPayload() {
       name: agent.name,
       mode: agent.mode,
       status: agent.enabled ? "ACTIVE" : "INACTIVE",
-      channels: [],
-      integrations: Array.from(
-        { length: state.integrations },
-        (_, index) => `integration-${index + 1}`,
-      ),
+      channels: state.inboxes
+        .filter((inbox) => inbox.agentId === agent.id)
+        .map((inbox) => inbox.provider ?? inbox.channelType ?? "unknown"),
+      integrations: Array.from({ length: state.integrations }, (_, index) => `integration-${index + 1}`),
       knowledgeStatus: state.documents.some((item) => item.status === "FAILED")
         ? "ERROR"
         : "READY",
@@ -108,7 +115,7 @@ async function buildPayload() {
       estimatedCost: Number(state.usage._sum.costUsd ?? 0),
       audioMinutes: 0,
       toolCalls: 0,
-      humanTransfers: 0,
+      humanTransfers: state.executionStages.find((item) => item.stage === "handoff")?._count ?? 0,
       errors: {},
     },
   };
