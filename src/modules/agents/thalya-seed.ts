@@ -48,11 +48,16 @@ export async function seedThalyaAgent(
     const allowDrive = enabled("BINARY_FEATURE_DRIVE");
     const allowAsaas = enabled("BINARY_FEATURE_ASAAS");
     const allowFollowUp = enabled("BINARY_FEATURE_FOLLOWUPS");
+    const allowHttpTools = planEnabled("httpTools", true);
+    const allowMcp = planEnabled("mcp", true);
+    const allowReminders = planEnabled("reminders") && allowCalendar;
     const allowHandoff = planEnabled("humanHandoff", true);
     agent.tools = tools.filter((grant) => {
       if (!grant || typeof grant !== "object") return false;
       const item = grant as Record<string, unknown>;
       if (item.source === "RAG") return allowRag;
+      if (item.source === "HTTP") return allowHttpTools;
+      if (item.source === "MCP") return allowMcp;
       if (item.source === "NATIVE" && Array.isArray(item.enabledTools)) {
         item.enabledTools = item.enabledTools.filter((tool) =>
           !["kanban_move_card", "update_kanban_task"].includes(String(tool)),
@@ -67,6 +72,11 @@ export async function seedThalyaAgent(
     });
     if (settings.followUp && typeof settings.followUp === "object") {
       (settings.followUp as Record<string, unknown>).enabled = allowFollowUp;
+    }
+    if (settings.appointmentReminders && typeof settings.appointmentReminders === "object") {
+      (settings.appointmentReminders as Record<string, unknown>).enabled = allowReminders;
+    } else if (allowReminders) {
+      settings.appointmentReminders = { enabled: true };
     }
     if (settings.vision && typeof settings.vision === "object")
       (settings.vision as Record<string, unknown>).enabled = planEnabled("vision", true);

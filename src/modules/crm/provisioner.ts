@@ -447,6 +447,7 @@ async function executeCoolifyRun(
     target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
   const plan = runtimePlanDefinition(planCode, target.deployment.contract?.planVersion);
   if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
+  const feature = (name: string) => Boolean((plan.features as Record<string, unknown>)[name]);
   const agentSeed = resolveAgentSeed(target.deployment.metadata);
   const publicUrl = (domain: unknown) => `https://${envValue(domain, "domain")}`;
   const secrets = {
@@ -495,6 +496,18 @@ async function executeCoolifyRun(
     BINARY_FEATURE_AUDIO: String(plan.features.stt || plan.features.tts),
     BINARY_FEATURE_FOLLOWUPS: String(plan.features.followUp),
     BINARY_FEATURE_ASAAS: String(plan.features.asaas),
+    BINARY_FEATURE_VISION: String(feature("vision")),
+    BINARY_FEATURE_DEBOUNCE: String(feature("debounce")),
+    BINARY_FEATURE_TYPING: String(feature("typing")),
+    BINARY_FEATURE_HANDOFF: String(feature("humanHandoff")),
+    BINARY_FEATURE_HTTP_TOOLS: String(feature("httpTools")),
+    BINARY_FEATURE_TOOLPACKS: String(feature("toolpacks")),
+    BINARY_FEATURE_MCP: String(feature("mcp")),
+    BINARY_FEATURE_REMINDERS: String(feature("reminders")),
+    BINARY_FEATURE_OMNICHANNEL: String(feature("omnichannel")),
+    BINARY_FEATURE_INBOX_ROUTING: String(feature("inboxRouting")),
+    BINARY_FEATURE_HSM_TEMPLATES: String(feature("hsmTemplates")),
+    BINARY_FEATURE_SPECIALIZED_AGENTS: String(feature("specializedAgents")),
     BINARY_LIMIT_AGENTS: String(plan.limits.agents),
     BINARY_LIMIT_CHANNELS: String(plan.limits.channels),
     BINARY_LIMIT_DOCUMENTS: String(plan.limits.knowledgeDocuments),
@@ -681,6 +694,7 @@ async function installStack(
     target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
   const plan = runtimePlanDefinition(planCode, target.deployment.contract?.planVersion);
   if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
+  const feature = (name: string) => Boolean((plan.features as Record<string, unknown>)[name]);
   const agentSeed = resolveAgentSeed(target.deployment.metadata);
   const required = {
     agentsDomain: p.agentsDomain,
@@ -741,6 +755,18 @@ async function installStack(
     `BINARY_FEATURE_AUDIO=${plan.features.stt || plan.features.tts}`,
     `BINARY_FEATURE_FOLLOWUPS=${plan.features.followUp}`,
     `BINARY_FEATURE_ASAAS=${plan.features.asaas}`,
+    `BINARY_FEATURE_VISION=${feature("vision")}`,
+    `BINARY_FEATURE_DEBOUNCE=${feature("debounce")}`,
+    `BINARY_FEATURE_TYPING=${feature("typing")}`,
+    `BINARY_FEATURE_HANDOFF=${feature("humanHandoff")}`,
+    `BINARY_FEATURE_HTTP_TOOLS=${feature("httpTools")}`,
+    `BINARY_FEATURE_TOOLPACKS=${feature("toolpacks")}`,
+    `BINARY_FEATURE_MCP=${feature("mcp")}`,
+    `BINARY_FEATURE_REMINDERS=${feature("reminders")}`,
+    `BINARY_FEATURE_OMNICHANNEL=${feature("omnichannel")}`,
+    `BINARY_FEATURE_INBOX_ROUTING=${feature("inboxRouting")}`,
+    `BINARY_FEATURE_HSM_TEMPLATES=${feature("hsmTemplates")}`,
+    `BINARY_FEATURE_SPECIALIZED_AGENTS=${feature("specializedAgents")}`,
     `BINARY_LIMIT_AGENTS=${plan.limits.agents}`,
     `BINARY_LIMIT_CHANNELS=${plan.limits.channels}`,
     `BINARY_LIMIT_DOCUMENTS=${plan.limits.knowledgeDocuments}`,

@@ -61,7 +61,7 @@ const emptyForm = (): PlanForm => ({
   features: Object.fromEntries(FEATURE_FIELDS.map(([key]) => [key, false])),
 });
 
-function formatDate(value: string | null | undefined) {
+function formatDate(value: string | Date | null | undefined) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(value));
 }
