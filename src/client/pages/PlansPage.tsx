@@ -41,15 +41,12 @@ const FEATURE_FIELDS = [
   ["hsmTemplates", "Templates HSM"],
   ["reminders", "Lembretes automáticos"],
   ["specializedAgents", "Agentes especializados"],
-  ["alerts", "Alertas Discord/webhook"],
-  ["outboundWebhooks", "Webhooks de saída"],
 ] as const;
 
 const FEATURE_GROUPS = [
   ["Agente e multimodalidade", ["text", "stt", "tts", "vision", "memory", "debounce", "typing", "playground", "humanHandoff"]],
   ["Conhecimento e ferramentas", ["calendar", "drive", "httpTools", "nativeTools", "toolpacks", "mcp", "customIntegrations"]],
   ["Canais e operação", ["omnichannel", "inboxRouting", "hsmTemplates", "followUp", "reminders", "specializedAgents", "asaas"]],
-  ["Plataforma e automações", ["alerts", "outboundWebhooks", "loadTest"]],
 ] as const;
 
 
