@@ -130,7 +130,7 @@ export function AdminTenantsPage() {
                             to="/crm/customers"
                             className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 font-medium text-text-secondary text-xs transition-colors hover:bg-bg-hover hover:text-text-primary"
                           >
-                            {t("admin.viewCrm", "Ver no CRM")}
+                            {t("admin.viewCrm", "Ver na Central Binary")}
                           </Link>
                         ) : (
                           <Link

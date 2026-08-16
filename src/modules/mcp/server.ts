@@ -2656,7 +2656,7 @@ export function buildMcpServer(principal: VerifiedToken): McpServer {
           plan: z.enum([
             "THALYA_ESSENCIAL",
             "THALYA_PROFISSIONAL",
-            "THALYA_INTELIGENTE",
+            "THALYA_ENTERPRISE",
           ]),
           niche: z.string().max(200).optional(),
           contact_name: z.string().max(200).optional(),

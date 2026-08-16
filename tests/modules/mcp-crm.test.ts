@@ -40,7 +40,7 @@ describe("CRM MCP tools", () => {
   test("requires an explicit tenant target", async () => {
     const result = await crmCustomerCreate(principal({ tenantId: null }), {
       name: "Clínica Moreira",
-      plan: "THALYA_INTELIGENTE",
+      plan: "THALYA_ENTERPRISE",
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("no tenant target");
