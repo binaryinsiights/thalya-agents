@@ -1,5 +1,7 @@
 # Binary Control no fazer.ai Agents
 
+Para o procedimento operacional destinado à equipe, consulte o [Manual da Central Binary e Planos](MANUAL-CENTRAL-BINARY-PLANOS.md).
+
 O CRM da Binary Insights é um módulo privado da instalação central do Agents. Ele
 registra clientes e acompanha instalações dedicadas, uma VPS por cliente, sem
 copiar conversas, prompts ou segredos dessas instalações.
