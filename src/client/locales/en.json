@@ -48,7 +48,7 @@
     "title": "Admin Panel",
     "totalUsers": "Total Users",
     "users": "Users",
-    "viewCrm": "Ver no CRM",
+    "viewCrm": "View in Binary Control",
     "viewUsers": "View users"
   },
   "advanced": {
@@ -1509,7 +1509,7 @@
     "collapse": "Collapse",
     "collapsed": "Collapsed",
     "conversations": "Conversations",
-    "crm": "CRM",
+    "crm": "Binary Control",
     "dashboard": "Dashboard",
     "expand": "Expand",
     "github": "GitHub",

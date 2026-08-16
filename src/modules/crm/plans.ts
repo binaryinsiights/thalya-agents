@@ -80,9 +80,9 @@ export const CRM_PLAN_DEFINITIONS = [
   },
   {
     schemaVersion: 1,
-    planCode: "INTELIGENTE",
+    planCode: "ENTERPRISE",
     version: "1.0.0",
-    displayName: "Thalya Inteligente",
+    displayName: "Enterprise",
     limits: {
       agents: 4,
       channels: 4,

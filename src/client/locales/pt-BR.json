@@ -48,7 +48,7 @@
     "title": "Painel Administrativo",
     "totalUsers": "Total de Usuários",
     "users": "Usuários",
-    "viewCrm": "Ver no CRM",
+    "viewCrm": "Ver na Central Binary",
     "viewUsers": "Ver usuários"
   },
   "advanced": {
@@ -1514,7 +1514,7 @@
     "collapse": "Recolher",
     "collapsed": "Recolhido",
     "conversations": "Conversas",
-    "crm": "CRM",
+    "crm": "Central Binary",
     "dashboard": "Painel",
     "expand": "Expandir",
     "github": "GitHub",

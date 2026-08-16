@@ -87,7 +87,7 @@ function isInstalledDeployment(
 const PLAN_LABELS: Record<string, string> = {
   ESSENCIAL: "Thalya Essencial",
   PROFISSIONAL: "Thalya Profissional",
-  INTELIGENTE: "Thalya Inteligente",
+  ENTERPRISE: "Enterprise",
 };
 
 const LIMIT_LABELS: Record<string, string> = {
@@ -242,7 +242,7 @@ export function CrmPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-bold text-2xl text-text-primary">
-            CRM Binary Insights
+              Central Binary
           </h1>
           <p className="mt-1 text-text-secondary">
             Gestão comercial, implantação e operação da sua carteira de agentes.
@@ -265,7 +265,7 @@ export function CrmPage() {
       </header>
       <nav
         className="flex gap-1 overflow-x-auto border-border border-b"
-        aria-label="Áreas do CRM"
+        aria-label="Áreas da Central Binary"
       >
         {SECTIONS.map(({ id, label, icon: Icon }) => (
           <button
@@ -1835,7 +1835,7 @@ function AuditTrail({ data }: { data: Workspace }) {
             <div>
               <p className="font-medium text-text-primary">{entry.action}</p>
               <p className="text-sm text-text-secondary">
-                {entry.target ?? "CRM"} · ator {entry.actorId ?? "sistema"}
+                {entry.target ?? "Central Binary"} · ator {entry.actorId ?? "sistema"}
               </p>
             </div>
             <time className="text-sm text-text-muted">

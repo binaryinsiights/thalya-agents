@@ -108,7 +108,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/crm",
     labelKey: "nav.crm",
-    defaultLabel: "CRM",
+    defaultLabel: "Central Binary",
     icon: BriefcaseBusiness,
     requireAdmin: true,
   },
