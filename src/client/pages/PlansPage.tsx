@@ -1,4 +1,4 @@
-import { Archive, Package, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Archive, Package, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Card, Input, PageContainer } from "@/client/components";
 import { api } from "@/client/lib/api";
@@ -152,6 +152,17 @@ export function PlansPage() {
     else await load();
   };
 
+  const deletePlan = async (row: PlanVersion) => {
+    if (!window.confirm(`Excluir definitivamente o plano ${row.displayName} ${row.version}? Essa ação não pode ser desfeita.`)) return;
+    const response = await api.api.v1.crm.plans.versions({ id: String(row.id) }).delete();
+    if (response.error) {
+      setError("Não foi possível excluir. Planos vinculados a contratos não podem ser removidos.");
+    } else {
+      setError(null);
+      await load();
+    }
+  };
+
   return (
     <PageContainer className="space-y-6">
       <header className="flex items-start justify-between gap-4">
@@ -217,7 +228,7 @@ export function PlansPage() {
       <Card>
         {loading ? <p className="text-sm text-text-secondary">Carregando planos…</p> : rows.length === 0 ? <p className="text-sm text-text-secondary">Nenhum plano cadastrado.</p> : (
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-border border-b text-left"><th className="px-2 py-3 font-medium text-text-secondary">Plano</th><th className="px-2 py-3 font-medium text-text-secondary">Versão</th><th className="px-2 py-3 font-medium text-text-secondary">Publicado</th><th className="px-2 py-3 font-medium text-text-secondary">Estado</th><th className="px-2 py-3 font-medium text-text-secondary">Ação</th></tr></thead><tbody>
-            {rows.map((row) => <tr key={String(row.id)} className="border-border/50 border-b"><td className="px-2 py-3 text-text-primary">{row.displayName} <span className="text-text-muted">({row.code})</span></td><td className="px-2 py-3 font-mono text-text-secondary">{row.version}</td><td className="px-2 py-3 text-text-secondary">{formatDate(row.publishedAt)}</td><td className="px-2 py-3"><Badge variant={row.retiredAt ? "secondary" : "success"}>{row.retiredAt ? "Arquivado" : "Ativo"}</Badge></td><td className="flex gap-2 px-2 py-3"><Button type="button" variant="secondary" size="sm" onClick={() => openEditor(row)}><Pencil className="mr-1 h-3.5 w-3.5" />Editar</Button><Button type="button" variant="secondary" size="sm" onClick={() => void toggleArchived(row)}>{row.retiredAt ? <RotateCcw className="mr-1 h-3.5 w-3.5" /> : <Archive className="mr-1 h-3.5 w-3.5" />}{row.retiredAt ? "Reativar" : "Arquivar"}</Button></td></tr>)}
+            {rows.map((row) => <tr key={String(row.id)} className="border-border/50 border-b"><td className="px-2 py-3 text-text-primary">{row.displayName} <span className="text-text-muted">({row.code})</span></td><td className="px-2 py-3 font-mono text-text-secondary">{row.version}</td><td className="px-2 py-3 text-text-secondary">{formatDate(row.publishedAt)}</td><td className="px-2 py-3"><Badge variant={row.retiredAt ? "secondary" : "success"}>{row.retiredAt ? "Arquivado" : "Ativo"}</Badge></td><td className="flex gap-2 px-2 py-3"><Button type="button" variant="secondary" size="sm" onClick={() => openEditor(row)}><Pencil className="mr-1 h-3.5 w-3.5" />Editar</Button><Button type="button" variant="secondary" size="sm" onClick={() => void toggleArchived(row)}>{row.retiredAt ? <RotateCcw className="mr-1 h-3.5 w-3.5" /> : <Archive className="mr-1 h-3.5 w-3.5" />}{row.retiredAt ? "Reativar" : "Arquivar"}</Button><Button type="button" variant="secondary" size="sm" onClick={() => void deletePlan(row)}><Trash2 className="mr-1 h-3.5 w-3.5" />Excluir</Button></td></tr>)}
           </tbody></table></div>
         )}
       </Card>

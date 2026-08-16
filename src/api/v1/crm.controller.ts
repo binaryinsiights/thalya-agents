@@ -32,6 +32,7 @@ import {
   createCrmCustomer,
   createCrmDeployment,
   createCrmPlanVersion,
+  deleteCrmPlanVersion,
   getCrmWorkspace,
   updateChecklistItem,
   retireCrmPlanVersion,
@@ -98,6 +99,20 @@ export const crmController = new Elysia({ prefix: "/v1/crm", tags: ["CRM"] })
         "Archives or reactivates a plan version without deleting history.",
       ),
       response: errors(400, 401, 403, 404),
+    },
+  )
+  .delete(
+    "/plans/versions/:id",
+    ({ tenantContext, params }) =>
+      deleteCrmPlanVersion(ctxOrThrow(tenantContext), BigInt(params.id)),
+    {
+      requireRole: "TENANT_ADMIN",
+      params: t.Object({ id: t.String() }),
+      detail: doc(
+        "Delete plan version",
+        "Permanently removes an unused plan version from the catalog.",
+      ),
+      response: errors(400, 401, 403, 404, 409),
     },
   )
   .post(

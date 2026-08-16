@@ -46,26 +46,6 @@ export async function getCrmWorkspace(
   base: PrismaClient = basePrisma,
 ) {
   return runScopedOn(base, ctx, async (db) => {
-    const currentTenantId = tenantId(ctx);
-    for (const plan of CRM_PLAN_DEFINITIONS) {
-      await db.crmPlanVersion.upsert({
-        where: {
-          tenantId_code_version: {
-            tenantId: currentTenantId,
-            code: plan.planCode,
-            version: plan.version,
-          },
-        },
-        create: {
-          tenantId: currentTenantId,
-          code: plan.planCode,
-          version: plan.version,
-          displayName: plan.displayName,
-          definition: plan as unknown as Prisma.InputJsonValue,
-        },
-        update: {},
-      });
-    }
     const [
       customers,
       deployments,
@@ -303,6 +283,24 @@ export async function retireCrmPlanVersion(
     });
   });
   return json(row);
+}
+
+/** Permanently removes an unused plan version. Contract history is preserved by refusing deletion when referenced. */
+export async function deleteCrmPlanVersion(
+  ctx: TenantContext,
+  id: bigint,
+  base: PrismaClient = basePrisma,
+) {
+  await runScopedOn(base, ctx, async (db) => {
+    const current = await db.crmPlanVersion.findFirst({
+      where: { id },
+      include: { _count: { select: { contracts: true } } },
+    });
+    if (!current) throw new NotFoundError("plan version not found");
+    if (current._count.contracts > 0)
+      throw new AppError("plan version is referenced by contracts and cannot be deleted", 409);
+    await db.crmPlanVersion.delete({ where: { id } });
+  });
 }
 
 export async function createCrmCustomer(
