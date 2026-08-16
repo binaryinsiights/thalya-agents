@@ -8,8 +8,8 @@ import basePrisma from "@/api/lib/prisma";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { runScopedOn, type TenantContext } from "@/lib/tenancy";
 import { resolveVaultSecret } from "@/modules/vault/service";
-import { CRM_PLAN_DEFINITIONS } from "./plans";
 import { initializeOnboarding } from "./operations";
+import { CRM_PLAN_DEFINITIONS } from "./plans";
 
 type LogEntry = { at: string; level: "info" | "error"; message: string };
 
@@ -31,6 +31,22 @@ function resolveAgentsImage(metadata: unknown) {
   if (!image || /:(latest|main|dev)$/i.test(image))
     throw new AppError("an immutable agents image is required", 400);
   return image;
+}
+
+function resolveAgentSeed(metadata: unknown) {
+  const values = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
+  const manifest = values.provisionManifest;
+  const agent = manifest && typeof manifest === "object"
+    ? (manifest as Record<string, unknown>).agent
+    : null;
+  const fields = agent && typeof agent === "object" ? (agent as Record<string, unknown>) : {};
+  const templateId = String(fields.templateId ?? "thalya").trim().toLowerCase();
+  const name = String(fields.name ?? "").trim();
+  if (!/^[a-z0-9][a-z0-9._-]{0,79}$/.test(templateId))
+    throw new AppError("agent templateId is invalid", 400);
+  if (name && /[\r\n\0]/.test(name))
+    throw new AppError("agent name is invalid", 400);
+  return { templateId, name };
 }
 
 async function loadTarget(
@@ -431,6 +447,7 @@ async function executeCoolifyRun(
     target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
   const plan = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === planCode);
   if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
+  const agentSeed = resolveAgentSeed(target.deployment.metadata);
   const publicUrl = (domain: unknown) => `https://${envValue(domain, "domain")}`;
   const secrets = {
     agentsDb: secret(24),
@@ -465,10 +482,15 @@ async function executeCoolifyRun(
     FLEET_LANGFUSE_HEALTH_URL: `https://${domains.langfuse}/api/public/health`,
     BINARY_CRM_ENABLED: "false",
     THALYA_SEED_AGENT: "true",
+    BINARY_AGENT_TEMPLATE_ID: agentSeed.templateId,
+    BINARY_AGENT_NAME: agentSeed.name,
     BINARY_PLAN: plan.planCode,
     BINARY_PLAN_VERSION: plan.version,
     BINARY_FEATURE_RAG: String(plan.limits.knowledgeDocuments > 0),
     BINARY_FEATURE_CALENDAR: String(plan.features.calendar),
+    BINARY_FEATURE_DRIVE: String(plan.features.drive),
+    BINARY_FEATURE_STT: String(plan.features.stt),
+    BINARY_FEATURE_TTS: String(plan.features.tts),
     BINARY_FEATURE_AUDIO: String(plan.features.stt || plan.features.tts),
     BINARY_FEATURE_FOLLOWUPS: String(plan.features.followUp),
     BINARY_FEATURE_ASAAS: String(plan.features.asaas),
@@ -658,6 +680,7 @@ async function installStack(
     target.deployment.contract?.planVersion.code ?? target.deployment.customer.plan;
   const plan = CRM_PLAN_DEFINITIONS.find((item) => item.planCode === planCode);
   if (!plan) throw new AppError(`unknown plan ${planCode}`, 400);
+  const agentSeed = resolveAgentSeed(target.deployment.metadata);
   const required = {
     agentsDomain: p.agentsDomain,
     chatwootDomain: p.chatwootDomain,
@@ -710,6 +733,9 @@ async function installStack(
     `BINARY_PLAN_VERSION=${plan.version}`,
     `BINARY_FEATURE_RAG=${plan.limits.knowledgeDocuments > 0}`,
     `BINARY_FEATURE_CALENDAR=${plan.features.calendar}`,
+    `BINARY_FEATURE_DRIVE=${plan.features.drive}`,
+    `BINARY_FEATURE_STT=${plan.features.stt}`,
+    `BINARY_FEATURE_TTS=${plan.features.tts}`,
     `BINARY_FEATURE_AUDIO=${plan.features.stt || plan.features.tts}`,
     `BINARY_FEATURE_FOLLOWUPS=${plan.features.followUp}`,
     `BINARY_FEATURE_ASAAS=${plan.features.asaas}`,
@@ -719,6 +745,8 @@ async function installStack(
     `BINARY_LIMIT_MONTHLY_CONVERSATIONS=${plan.limits.monthlyConversations}`,
     "BINARY_CRM_ENABLED=false",
     "THALYA_SEED_AGENT=true",
+    `BINARY_AGENT_TEMPLATE_ID=${agentSeed.templateId}`,
+    ...(agentSeed.name ? [`BINARY_AGENT_NAME=${agentSeed.name}`] : []),
   ].join("\n")}\n`;
   const chatwootEnv = `${[
     `CHATWOOT_URL=https://${p.chatwootDomain}`,

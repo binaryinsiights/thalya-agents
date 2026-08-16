@@ -273,7 +273,6 @@ export async function receiveCrmHeartbeat(params: {
             tenantId: resolved.tenantId,
             deploymentId: resolved.id,
             remoteAgentId: agent.id,
-            plan: "MANAGED",
             ...data,
           },
         });

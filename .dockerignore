@@ -12,6 +12,10 @@ coverage
 .vscode
 .idea
 docs
+!docs/
+!docs/crm/
+!docs/crm/templates/
+!docs/crm/templates/thalya-base-agent.json
 *.md
 !README.md
 tests

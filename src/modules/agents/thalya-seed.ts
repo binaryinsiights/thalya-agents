@@ -10,19 +10,83 @@ export async function seedThalyaAgent(
   ctx: TenantContext,
 ): Promise<{ seeded: boolean; warning?: string }> {
   if (process.env.THALYA_SEED_AGENT !== "true") return { seeded: false };
+  // The customer image carries the approved Binary template in the image. The
+  // template is intentionally imported only after the first administrator runs
+  // /setup, so no customer secret is needed during infrastructure provisioning.
+  // Until dedicated exports are bundled, the Maria/Thalya aliases use the same
+  // reviewed operational base and can still override the display name.
+  const templateId = (process.env.BINARY_AGENT_TEMPLATE_ID ?? "thalya")
+    .trim()
+    .toLowerCase();
+  const templateFiles: Record<string, string> = {
+    thalya: "thalya-base-agent.json",
+    "thalya-base": "thalya-base-agent.json",
+    maria: "thalya-base-agent.json",
+    "maria-clinica": "thalya-base-agent.json",
+  };
+
+  const enabled = (name: string, fallback = false) =>
+    (process.env[name] ?? String(fallback)).toLowerCase() === "true";
+  const applyPlan = (payload: Record<string, unknown>) => {
+    const agent = payload.agent as Record<string, unknown>;
+    const settings = (agent.settings ?? {}) as Record<string, unknown>;
+    const tools = Array.isArray(agent.tools) ? agent.tools : [];
+    const allowRag = enabled("BINARY_FEATURE_RAG");
+    const allowCalendar = enabled("BINARY_FEATURE_CALENDAR");
+    const allowDrive = enabled("BINARY_FEATURE_DRIVE");
+    const allowAsaas = enabled("BINARY_FEATURE_ASAAS");
+    const allowFollowUp = enabled("BINARY_FEATURE_FOLLOWUPS");
+    agent.tools = tools.filter((grant) => {
+      if (!grant || typeof grant !== "object") return false;
+      const item = grant as Record<string, unknown>;
+      if (item.source === "RAG") return allowRag;
+      if (item.source !== "INTEGRATION") return true;
+      const catalogType = String(item.catalogType ?? "");
+      if (catalogType === "GOOGLE_CALENDAR") return allowCalendar;
+      if (catalogType === "GOOGLE_DRIVE") return allowDrive;
+      if (catalogType === "ASAAS") return allowAsaas;
+      return true;
+    });
+    if (settings.followUp && typeof settings.followUp === "object") {
+      (settings.followUp as Record<string, unknown>).enabled = allowFollowUp;
+    }
+    if (!enabled("BINARY_FEATURE_STT")) {
+      if (settings.stt && typeof settings.stt === "object")
+        (settings.stt as Record<string, unknown>).enabled = false;
+    }
+    if (!enabled("BINARY_FEATURE_TTS")) {
+      if (settings.tts && typeof settings.tts === "object")
+        (settings.tts as Record<string, unknown>).mode = "never";
+    }
+    agent.settings = settings;
+  };
+  const templateFile = templateFiles[templateId];
+  if (!templateFile)
+    return {
+      seeded: false,
+      warning: `agent template not bundled: ${templateId}`,
+    };
   const file = path.join(
     process.cwd(),
     "docs",
     "crm",
     "templates",
-    "thalya-base-agent.json",
+    templateFile,
   );
   try {
-    const raw = JSON.parse(await readFile(file, "utf8")) as unknown;
+    const raw = JSON.parse(await readFile(file, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const agent = raw.agent as Record<string, unknown> | undefined;
+    if (!agent) throw new Error("agent template has no agent payload");
+    const requestedName = process.env.BINARY_AGENT_NAME?.trim();
+    if (requestedName) agent.name = requestedName;
+    applyPlan(raw);
     await importAgent(ctx, raw);
     logger.info(
-      { tenantId: ctx.tenantId?.toString() },
-      "Thalya base agent seeded",
+      { tenantId: ctx.tenantId?.toString(), templateId, name: agent.name },
+      "Binary agent template seeded",
     );
     return { seeded: true };
   } catch (error) {
